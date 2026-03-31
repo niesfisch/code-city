@@ -2,6 +2,10 @@
 
 <img src="doc/logo.png" alt="Code City logo" width="180" />
 
+<video src="doc/log4j_city.mp4" controls width="960"></video>
+
+[If the video does not render inline, open it directly.](doc/log4j_city.mp4)
+
 Code City turns a Java or Kotlin project into a 3D cityscape.
 
 Packages become plateaus. Classes, interfaces, enums, records, and abstract classes (Java) or classes, interfaces, objects, and data classes (Kotlin) become buildings. The more code and branching a type has, the taller the building gets. The goal is not perfect static analysis theology; the goal is a fast visual feel for structure and complexity.
