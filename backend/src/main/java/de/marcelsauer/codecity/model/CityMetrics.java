@@ -32,5 +32,15 @@ public class CityMetrics {
     private int kotlinFilesScanned;
     /** Files that contained at least one parsed type. */
     private int filesParsed;
+    /** Average lines of code per type. */
+    private double avgLinesPerClass;
+    /** Average number of methods per type. */
+    private double avgMethodsPerClass;
+    /** Sum of cyclomatic complexity across all methods in the project. */
+    private double totalCyclomatic;
+    /** Fully qualified name of the type with the highest complexity score. */
+    private String mostComplexClass;
+    /** Fully qualified name of the type with the most lines of code. */
+    private String largestClass;
 }
 

@@ -418,7 +418,8 @@ public class JavaAnalysisService {
                 declaration.getMethods(),
                 declaration.getFields().size(),
                 declaration.getConstructors(),
-                lineCountFor(declaration)
+                lineCountFor(declaration),
+                declaration
         );
         return Optional.of(newBuilding(packageName, declaration.getNameAsString(), sourceFile, buildingType, metrics));
     }
@@ -428,7 +429,8 @@ public class JavaAnalysisService {
                 declaration.getMethods(),
                 declaration.getFields().size(),
                 List.of(),
-                lineCountFor(declaration)
+                lineCountFor(declaration),
+                declaration
         );
         return Optional.of(newBuilding(packageName, declaration.getNameAsString(), sourceFile, BuildingType.ENUM, metrics));
     }
@@ -438,7 +440,8 @@ public class JavaAnalysisService {
                 declaration.getMethods(),
                 declaration.getParameters().size(),
                 List.of(),
-                lineCountFor(declaration)
+                lineCountFor(declaration),
+                declaration
         );
         return Optional.of(newBuilding(packageName, declaration.getNameAsString(), sourceFile, BuildingType.RECORD, metrics));
     }
@@ -457,12 +460,22 @@ public class JavaAnalysisService {
     private Metrics metricsFor(Collection<MethodDeclaration> methods,
                                int fieldCount,
                                Collection<ConstructorDeclaration> constructors,
-                               int linesOfCode) {
+                               int linesOfCode,
+                               Node declarationNode) {
         int methodCount = methods.size();
         int constructorCount = constructors.size();
         double cyclomatic = methods.stream().mapToDouble(this::cyclomaticComplexity).sum()
                 + constructors.stream().mapToDouble(this::cyclomaticComplexity).sum();
         double complexity = normalizeComplexity(methodCount, fieldCount, constructorCount, cyclomatic, linesOfCode);
+
+        int maxMethodParameters = methods.stream()
+                .mapToInt(m -> m.getParameters().size())
+                .max().orElse(0);
+        int staticMethodCount = (int) methods.stream()
+                .filter(MethodDeclaration::isStatic)
+                .count();
+        int innerTypeCount = countInnerTypes(declarationNode);
+        int commentLineCount = countCommentLines(declarationNode);
 
         return Metrics.builder()
                 .methodCount(methodCount)
@@ -471,6 +484,10 @@ public class JavaAnalysisService {
                 .cyclomatic(cyclomatic)
                 .linesOfCode(linesOfCode)
                 .complexity(complexity)
+                .maxMethodParameters(maxMethodParameters)
+                .staticMethodCount(staticMethodCount)
+                .innerTypeCount(innerTypeCount)
+                .commentLineCount(commentLineCount)
                 .build();
     }
 
@@ -828,6 +845,34 @@ public class JavaAnalysisService {
                 .color(source.getColor())
                 .build();
     }
+
+    /**
+     * Counts all inner type declarations (classes, interfaces, enums, records)
+     * nested directly or indirectly inside the given declaration node.
+     * The declaration node itself is excluded from the count.
+     */
+    private int countInnerTypes(Node declarationNode) {
+        int classes = declarationNode.findAll(ClassOrInterfaceDeclaration.class).size();
+        int enums   = declarationNode.findAll(EnumDeclaration.class).size();
+        int records = declarationNode.findAll(RecordDeclaration.class).size();
+        // findAll includes the root itself when the type matches — subtract 1 for self
+        return Math.max(0, classes + enums + records - 1);
+    }
+
+    /**
+     * Counts total lines occupied by comments inside (and attached to) the given
+     * declaration node.  Serves as a rough documentation-coverage proxy.
+     */
+    private int countCommentLines(Node declarationNode) {
+        int inBody = declarationNode.getAllContainedComments().stream()
+                .mapToInt(c -> c.getRange().map(r -> r.end.line - r.begin.line + 1).orElse(0))
+                .sum();
+        int ownComment = declarationNode.getComment()
+                .map(c -> c.getRange().map(r -> r.end.line - r.begin.line + 1).orElse(0))
+                .orElse(0);
+        return inBody + ownComment;
+    }
+
     private CityMetrics buildCityMetrics(Map<String, List<Building>> buildingsByPackage, List<Building> buildings,
                                          int filesScanned, int javaFilesScanned, int kotlinFilesScanned, int filesParsed) {
         List<Double> complexities = buildings.stream()
@@ -835,6 +880,24 @@ public class JavaAnalysisService {
                 .filter(Objects::nonNull)
                 .map(Metrics::getComplexity)
                 .toList();
+
+        double avgLinesPerClass = buildings.isEmpty() ? 0.0 :
+                buildings.stream().mapToInt(b -> b.getMetrics().getLinesOfCode()).average().orElse(0.0);
+        double avgMethodsPerClass = buildings.isEmpty() ? 0.0 :
+                buildings.stream().mapToInt(b -> b.getMetrics().getMethodCount()).average().orElse(0.0);
+        double totalCyclomatic = buildings.stream()
+                .mapToDouble(b -> b.getMetrics().getCyclomatic()).sum();
+
+        String mostComplexClass = buildings.stream()
+                .filter(b -> b.getMetrics() != null)
+                .max(Comparator.comparingDouble((Building b) -> b.getMetrics().getComplexity()))
+                .map(Building::getFullName)
+                .orElse("");
+        String largestClass = buildings.stream()
+                .filter(b -> b.getMetrics() != null)
+                .max(Comparator.comparingInt((Building b) -> b.getMetrics().getLinesOfCode()))
+                .map(Building::getFullName)
+                .orElse("");
 
         return CityMetrics.builder()
                 .totalClasses((int) buildings.stream().filter(building -> building.getType() != BuildingType.INTERFACE).count())
@@ -850,6 +913,11 @@ public class JavaAnalysisService {
                 .javaFilesScanned(javaFilesScanned)
                 .kotlinFilesScanned(kotlinFilesScanned)
                 .filesParsed(filesParsed)
+                .avgLinesPerClass(Math.round(avgLinesPerClass * 10.0) / 10.0)
+                .avgMethodsPerClass(Math.round(avgMethodsPerClass * 10.0) / 10.0)
+                .totalCyclomatic(Math.round(totalCyclomatic * 10.0) / 10.0)
+                .mostComplexClass(mostComplexClass)
+                .largestClass(largestClass)
                 .build();
     }
 

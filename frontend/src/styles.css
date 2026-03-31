@@ -308,6 +308,20 @@ button:hover {
   background: rgba(30, 41, 59, 0.7);
 }
 
+.metric-card--highlight {
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  background: rgba(251, 146, 60, 0.08);
+  cursor: default;
+}
+
+.metric-card--highlight strong {
+  color: #fb923c;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .metric-card strong {
   display: block;
   font-size: 1.2rem;

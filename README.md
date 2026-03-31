@@ -10,9 +10,9 @@ Packages become plateaus. Classes, interfaces, enums, records, and abstract clas
 
 Multiple Java and/or Kotlin projects at the top level create distinct base plateaus stacked as nested districts:
 
-![Code City visualization example 1](doc/city1.png)
-
-![Code City visualization example 2](doc/city2.png)
+<img src="doc/city1.png" alt="Code City visualization example 1" width="320" />
+<img src="doc/city2.png" alt="Code City visualization example 2" width="320" />
+<img src="doc/city3.png" alt="Code City visualization example 3" width="320" />
 
 ## What it does
 

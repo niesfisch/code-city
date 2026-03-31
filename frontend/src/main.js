@@ -23,6 +23,10 @@ const METRIC_EXPLANATIONS = {
   linesOfCode: 'Approximate lines of code (LOC) for the type body.',
   cyclomatic: 'Cyclomatic complexity: higher means more branching paths to test and reason about.',
   complexity: 'Composite complexity score from methods, fields, constructors, cyclomatic complexity, and LOC.',
+  maxMethodParameters: 'Maximum number of parameters on a single method. Values \u22655 suggest a "Long Parameter List" smell \u2014 consider a parameter object.',
+  staticMethodCount: 'Number of static methods. High values may indicate a utility class or procedural-style code leaking into an object.',
+  innerTypeCount: 'Number of nested type declarations inside this type. Inner types often signal that the class is doing too much.',
+  commentLineCount: 'Lines occupied by comments (including Javadoc). Low relative to LOC may indicate poor documentation coverage.',
   buildingCount: 'Total number of building objects inside this package plateau.',
   averageHeight: 'Average building height in this package. Height mainly follows method count.'
 };
@@ -147,6 +151,10 @@ function renderMetrics(cityscape) {
   const ms = metrics.analysisTimeMs ?? 0;
   const timeLabel = ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
   elements.summary.textContent = `${metrics.totalPackages} packages, ${cityscape.buildings.length} buildings, average complexity ${metrics.averageComplexity.toFixed(2)} — scanned ${metrics.filesScanned} files, analyzed in ${timeLabel}.`;
+
+  const mostComplex = metrics.mostComplexClass ? metrics.mostComplexClass.split('.').pop() : '—';
+  const largest     = metrics.largestClass     ? metrics.largestClass.split('.').pop()     : '—';
+
   elements.metrics.innerHTML = `
     <div class="metric-grid">
       <div class="metric-card"><span>Files scanned</span><strong>${metrics.filesScanned}</strong></div>
@@ -158,6 +166,11 @@ function renderMetrics(cityscape) {
       <div class="metric-card"><span>Methods</span><strong>${metrics.totalMethods}</strong></div>
       <div class="metric-card"><span>Fields</span><strong>${metrics.totalFields}</strong></div>
       <div class="metric-card"><span>Lines</span><strong>${metrics.totalLines}</strong></div>
+      <div class="metric-card"><span>Avg LOC / type</span><strong>${metrics.avgLinesPerClass?.toFixed(1) ?? '—'}</strong></div>
+      <div class="metric-card"><span>Avg methods / type</span><strong>${metrics.avgMethodsPerClass?.toFixed(1) ?? '—'}</strong></div>
+      <div class="metric-card"><span>Total cyclomatic</span><strong>${metrics.totalCyclomatic?.toFixed(0) ?? '—'}</strong></div>
+      <div class="metric-card metric-card--highlight" title="${metrics.mostComplexClass ?? ''}"><span>Most complex</span><strong>${mostComplex}</strong></div>
+      <div class="metric-card metric-card--highlight" title="${metrics.largestClass ?? ''}"><span>Largest type</span><strong>${largest}</strong></div>
       <div class="metric-card"><span>Analysis time</span><strong>${timeLabel}</strong></div>
     </div>
   `;
