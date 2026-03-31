@@ -6,7 +6,7 @@
     <title>Code City</title>
     <meta
       name="description"
-      content="Visualize Java projects as a 3D cityscape with packages as districts and types as buildings."
+      content="Visualize Java and Kotlin projects as 3D cityscapes with packages as districts and types as buildings."
     />
     <link rel="icon" type="image/png" href="/logo.png" />
     <script type="module" src="/src/main.js"></script>
@@ -16,9 +16,9 @@
       <aside class="sidebar">
         <div>
           <p class="eyebrow">Code City</p>
-          <h1>Java complexity as a skyline</h1>
+          <h1>Code structure as a skyline</h1>
           <p class="muted">
-            Point this thing at a Java source tree and it turns packages into plateaus and types into buildings.
+            Point this thing at a Java or Kotlin source tree and it turns packages into plateaus and types into buildings.
           </p>
         </div>
 
@@ -41,7 +41,7 @@
           <label class="toggle-row">
             <div class="toggle-info">
               <span class="toggle-label">Exclude test sources</span>
-              <span class="toggle-hint">Skips <code>src/test/java</code> and files matching <code>Test*.java</code>, <code>*IT.java</code>, etc.</span>
+              <span class="toggle-hint">Skips <code>src/test/java</code>, <code>src/test/kotlin</code>, and files matching <code>Test*.java</code>, <code>*Test.kt</code>, <code>*IT.java</code>, etc.</span>
             </div>
             <div class="toggle-switch">
               <input id="excludeTests" name="excludeTests" type="checkbox" role="switch" checked />
@@ -61,29 +61,30 @@
 
         <section class="panel stack-md">
           <div class="section-title">Legend</div>
+          <p class="hint">Types shown in blue are Java, teal are Kotlin</p>
           <ul class="legend">
-            <li data-highlight-type="CLASS"><span class="swatch class"></span> Java Class</li>
-            <li data-highlight-type="ABSTRACT"><span class="swatch abstract"></span> Abstract class</li>
-            <li data-highlight-type="INTERFACE"><span class="swatch interface"></span> Java Interface</li>
-            <li data-highlight-type="RECORD"><span class="swatch record"></span> Record</li>
-            <li data-highlight-type="ENUM"><span class="swatch enum"></span> Enum</li>
-            <li data-highlight-type="KOTLIN_CLASS"><span class="swatch kotlin-class"></span> Kotlin Class</li>
-            <li data-highlight-type="KOTLIN_INTERFACE"><span class="swatch kotlin-interface"></span> Kotlin Interface</li>
-            <li data-highlight-type="KOTLIN_OBJECT"><span class="swatch kotlin-object"></span> Kotlin Object</li>
-            <li data-highlight-type="KOTLIN_DATA_CLASS"><span class="swatch kotlin-data-class"></span> Data Class</li>
+            <li data-highlight-type="CLASS"><span class="swatch class"></span> Class (Java)</li>
+            <li data-highlight-type="ABSTRACT"><span class="swatch abstract"></span> Abstract class (Java)</li>
+            <li data-highlight-type="INTERFACE"><span class="swatch interface"></span> Interface (Java)</li>
+            <li data-highlight-type="RECORD"><span class="swatch record"></span> Record (Java)</li>
+            <li data-highlight-type="ENUM"><span class="swatch enum"></span> Enum (Java)</li>
+            <li data-highlight-type="KOTLIN_CLASS"><span class="swatch kotlin-class"></span> Class (Kotlin)</li>
+            <li data-highlight-type="KOTLIN_INTERFACE"><span class="swatch kotlin-interface"></span> Interface (Kotlin)</li>
+            <li data-highlight-type="KOTLIN_OBJECT"><span class="swatch kotlin-object"></span> Object (Kotlin)</li>
+            <li data-highlight-type="KOTLIN_DATA_CLASS"><span class="swatch kotlin-data-class"></span> Data Class (Kotlin)</li>
             <li data-highlight-type="PLATEAU"><span class="swatch plateau"></span> Package plateau</li>
           </ul>
           <p class="legend-hint">Click to filter · click again to clear</p>
 
-          <div class="section-title" style="margin-top: 4px;">Encoding</div>
+          <div class="section-title" style="margin-top: 4px;">Encoding (Java & Kotlin)</div>
           <dl class="encoding-list">
             <div class="encoding-row">
               <dt>Height</dt>
-              <dd>NOM — number of methods</dd>
+              <dd>NOM — number of methods (fun/method)</dd>
             </div>
             <div class="encoding-row">
               <dt>Width</dt>
-              <dd>NOA — number of attributes</dd>
+              <dd>NOA — number of attributes (field/val/var)</dd>
             </div>
             <div class="encoding-row">
               <dt>Depth</dt>
