@@ -2,13 +2,13 @@
 
 <img src="doc/logo.png" alt="Code City logo" width="180" />
 
-Code City turns a Java project into a 3D cityscape.
+Code City turns a Java or Kotlin project into a 3D cityscape.
 
-Packages become plateaus. Classes, interfaces, enums, records, and abstract classes become buildings. The more code and branching a type has, the taller the building gets. The goal is not perfect static analysis theology; the goal is a fast visual feel for structure and complexity.
+Packages become plateaus. Classes, interfaces, enums, records, and abstract classes (Java) or classes, interfaces, objects, and data classes (Kotlin) become buildings. The more code and branching a type has, the taller the building gets. The goal is not perfect static analysis theology; the goal is a fast visual feel for structure and complexity.
 
 ### Example cityscapes
 
-Multiple Java projects at the top level create distinct base plateaus stacked as nested districts:
+Multiple Java and/or Kotlin projects at the top level create distinct base plateaus stacked as nested districts:
 
 ![Code City visualization example 1](doc/city1.png)
 
@@ -220,7 +220,8 @@ samples/demo-project/    Tiny sample Java project for smoke tests
 ## Limitations
 
 - The metrics are intentionally lightweight, not a full semantic model.
-- Only top-level Java types are rendered as buildings.
+- Only top-level Java and Kotlin types are rendered as buildings.
+- Kotlin metrics are approximated via pattern matching; Java metrics use full AST analysis.
 - Very large projects may need future batching or caching.
 - The app reads local files from the path you provide, so run it in a trusted local environment.
 

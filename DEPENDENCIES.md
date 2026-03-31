@@ -1,6 +1,6 @@
 # Code City Dependencies
 
-This document lists all direct dependencies used in Code City and their licenses.
+This document lists all direct dependencies used in Code City and their licenses. Code City supports analysis of both Java and Kotlin source code.
 
 ## Backend Dependencies (Java/Maven)
 
@@ -9,7 +9,7 @@ This document lists all direct dependencies used in Code City and their licenses
 | Spring Boot Starter Web | 3.2.8 | Apache 2.0 | REST API and web framework |
 | Spring Boot Starter JSON | 3.2.8 | Apache 2.0 | JSON serialization |
 | Spring Boot Starter Validation | 3.2.8 | Apache 2.0 | Input validation |
-| JavaParser | 3.26.1 | Apache 2.0 | Java source code parsing and AST analysis |
+| JavaParser | 3.26.1 | Apache 2.0 | Java source code parsing and AST analysis; Kotlin detection |
 | Apache Commons Lang3 | 3.15.0 | Apache 2.0 | Utility functions for strings and collections |
 | Apache Commons IO | 2.17.0 | Apache 2.0 | File I/O utilities |
 | Lombok | 1.18.34 | MIT | Annotation processor for boilerplate reduction |
@@ -52,7 +52,14 @@ Previous issue (now fixed):
 
 ## Upgrade History
 
-### Latest upgrade (2026-03-31)
+### Kotlin language support added (2026-03-31)
+
+- Extended scanner to discover and parse `.kt` (Kotlin) files
+- Added Kotlin building types: KOTLIN_CLASS, KOTLIN_INTERFACE, KOTLIN_OBJECT, KOTLIN_DATA_CLASS
+- Kotlin metrics extraction: methods (fun), fields (val/var), constructors
+- Mixed Java/Kotlin projects now render with distinct color families
+
+### Latest dependency upgrades (2026-03-31)
 
 **Backend:**
 - Spring Boot 3.2.3 → 3.2.8
