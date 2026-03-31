@@ -39,9 +39,15 @@ public class AnalysisController {
         );
         cityscape.getMetrics().setAnalysisTimeMs(System.currentTimeMillis() - start);
 
-        log.info("Analysis complete in {} ms. Found {} packages and {} buildings",
+        log.info("Analysis complete in {} ms. Scanned {} files ({} Java, {} Kotlin), parsed {} files. " +
+                "Found {} packages and {} buildings",
                 cityscape.getMetrics().getAnalysisTimeMs(),
-                cityscape.getPlateaus().size(), cityscape.getBuildings().size());
+                cityscape.getMetrics().getFilesScanned(),
+                cityscape.getMetrics().getJavaFilesScanned(),
+                cityscape.getMetrics().getKotlinFilesScanned(),
+                cityscape.getMetrics().getFilesParsed(),
+                cityscape.getPlateaus().size(),
+                cityscape.getBuildings().size());
 
         return ResponseEntity.ok(cityscape);
     }

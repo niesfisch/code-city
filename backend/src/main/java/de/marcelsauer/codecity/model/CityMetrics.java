@@ -24,5 +24,13 @@ public class CityMetrics {
     private double minComplexity;
     /** Wall-clock time in milliseconds for the full analysis run. */
     private long analysisTimeMs;
+    /** Total source files discovered (Java + Kotlin). */
+    private int filesScanned;
+    /** Java source files found. */
+    private int javaFilesScanned;
+    /** Kotlin source files found. */
+    private int kotlinFilesScanned;
+    /** Files that contained at least one parsed type. */
+    private int filesParsed;
 }
 

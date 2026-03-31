@@ -82,10 +82,18 @@ public class JavaAnalysisService {
         validateRootPath(basePath);
 
         List<Path> javaFiles = findJavaFiles(basePath, excludeTests);
+        int filesScanned = javaFiles.size();
+        int javaFilesScanned = (int) javaFiles.stream().filter(f -> f.toString().endsWith(".java")).count();
+        int kotlinFilesScanned = (int) javaFiles.stream().filter(f -> f.toString().endsWith(".kt")).count();
+        
         Map<String, List<Building>> buildingsByPackage = new LinkedHashMap<>();
+        int filesParsed = 0;
 
         for (Path javaFile : javaFiles) {
             List<Building> buildings = extractBuildings(basePath, javaFile, includePattern, excludePattern);
+            if (!buildings.isEmpty()) {
+                filesParsed++;
+            }
             for (Building building : buildings) {
                 buildingsByPackage.computeIfAbsent(building.getPackageName(), ignored -> new ArrayList<>()).add(building);
             }
@@ -110,7 +118,7 @@ public class JavaAnalysisService {
         return Cityscape.builder()
                 .plateaus(plateaus)
                 .buildings(buildings)
-                .metrics(buildCityMetrics(sortedPackages, buildings))
+                .metrics(buildCityMetrics(sortedPackages, buildings, filesScanned, javaFilesScanned, kotlinFilesScanned, filesParsed))
                 .build();
     }
 
@@ -820,8 +828,8 @@ public class JavaAnalysisService {
                 .color(source.getColor())
                 .build();
     }
-
-    private CityMetrics buildCityMetrics(Map<String, List<Building>> buildingsByPackage, List<Building> buildings) {
+    private CityMetrics buildCityMetrics(Map<String, List<Building>> buildingsByPackage, List<Building> buildings,
+                                         int filesScanned, int javaFilesScanned, int kotlinFilesScanned, int filesParsed) {
         List<Double> complexities = buildings.stream()
                 .map(Building::getMetrics)
                 .filter(Objects::nonNull)
@@ -838,6 +846,10 @@ public class JavaAnalysisService {
                 .averageComplexity(complexities.stream().mapToDouble(Double::doubleValue).average().orElse(0))
                 .maxComplexity(complexities.stream().mapToDouble(Double::doubleValue).max().orElse(0))
                 .minComplexity(complexities.stream().mapToDouble(Double::doubleValue).min().orElse(0))
+                .filesScanned(filesScanned)
+                .javaFilesScanned(javaFilesScanned)
+                .kotlinFilesScanned(kotlinFilesScanned)
+                .filesParsed(filesParsed)
                 .build();
     }
 

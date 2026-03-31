@@ -146,14 +146,17 @@ function renderMetrics(cityscape) {
   const metrics = cityscape.metrics;
   const ms = metrics.analysisTimeMs ?? 0;
   const timeLabel = ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
-  elements.summary.textContent = `${metrics.totalPackages} packages, ${cityscape.buildings.length} buildings, average complexity ${metrics.averageComplexity.toFixed(2)} — analyzed in ${timeLabel}.`;
+  elements.summary.textContent = `${metrics.totalPackages} packages, ${cityscape.buildings.length} buildings, average complexity ${metrics.averageComplexity.toFixed(2)} — scanned ${metrics.filesScanned} files, analyzed in ${timeLabel}.`;
   elements.metrics.innerHTML = `
     <div class="metric-grid">
+      <div class="metric-card"><span>Files scanned</span><strong>${metrics.filesScanned}</strong></div>
+      <div class="metric-card"><span>Java files</span><strong>${metrics.javaFilesScanned}</strong></div>
+      <div class="metric-card"><span>Kotlin files</span><strong>${metrics.kotlinFilesScanned}</strong></div>
+      <div class="metric-card"><span>Files parsed</span><strong>${metrics.filesParsed}</strong></div>
       <div class="metric-card"><span>Packages</span><strong>${metrics.totalPackages}</strong></div>
       <div class="metric-card"><span>Types</span><strong>${cityscape.buildings.length}</strong></div>
       <div class="metric-card"><span>Methods</span><strong>${metrics.totalMethods}</strong></div>
       <div class="metric-card"><span>Fields</span><strong>${metrics.totalFields}</strong></div>
-      <div class="metric-card"><span>Interfaces</span><strong>${metrics.totalInterfaces}</strong></div>
       <div class="metric-card"><span>Lines</span><strong>${metrics.totalLines}</strong></div>
       <div class="metric-card"><span>Analysis time</span><strong>${timeLabel}</strong></div>
     </div>
