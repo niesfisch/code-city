@@ -323,6 +323,115 @@ class CityRenderer {
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
+
+  /**
+   * Search for buildings by name (case-insensitive partial match).
+   * Returns matching building meshes with their selection data.
+   */
+  searchByName(query) {
+    if (!query || !query.trim()) {
+      return [];
+    }
+    const q = query.toLowerCase();
+    return this.pickableMeshes
+      .filter(mesh => mesh.userData.typeKey !== 'PLATEAU')
+      .filter(mesh => {
+        const name = mesh.userData.selection.name || '';
+        const fullName = mesh.userData.selection.fullName || '';
+        return name.toLowerCase().includes(q) || fullName.toLowerCase().includes(q);
+      })
+      .map(mesh => ({
+        mesh,
+        name: mesh.userData.selection.name,
+        fullName: mesh.userData.selection.fullName,
+        packageName: mesh.userData.selection.packageName,
+        type: mesh.userData.selection.type
+      }));
+  }
+
+  /**
+   * Highlight all matching buildings and dim everything else.
+   * Calling with empty array clears the search highlight.
+   */
+  highlightSearchResults(matchingMeshes) {
+    if (!matchingMeshes || matchingMeshes.length === 0) {
+      this.clearSearchHighlight();
+      return;
+    }
+
+    const matchSet = new Set(matchingMeshes);
+
+    for (const mesh of this.pickableMeshes) {
+      mesh.material.transparent = true;
+
+      if (matchSet.has(mesh)) {
+        mesh.material.opacity = 1.0;
+        mesh.material.emissive.setHex(mesh.userData.highlightEmissiveHex);
+      } else {
+        mesh.material.opacity = 0.12;
+        mesh.material.emissive.setHex(0x000000);
+      }
+      mesh.material.needsUpdate = true;
+    }
+  }
+
+  /**
+   * Clear search highlighting and restore normal rendering.
+   */
+  clearSearchHighlight() {
+    for (const mesh of this.pickableMeshes) {
+      mesh.material.transparent = mesh.userData.originalTransparent;
+      mesh.material.opacity = mesh.userData.originalOpacity;
+      mesh.material.emissive.setHex(mesh.userData.originalEmissiveHex);
+      mesh.material.needsUpdate = true;
+    }
+  }
+
+  /**
+   * Focus the camera on a specific mesh, with smooth zoom.
+   */
+  focusOnMesh(mesh) {
+    if (!mesh) return;
+
+    const box = new THREE.Box3().setFromObject(mesh);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+
+    // Frame the object with some padding
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const fov = this.camera.fov * (Math.PI / 180); // convert vertical fov to radians
+    let distance = maxDim / 2 / Math.tan(fov / 2);
+    distance *= 1.8; // zoom out a bit more for context
+
+    // Smoothly animate to the new position
+    const startPos = this.camera.position.clone();
+    const endPos = new THREE.Vector3(
+      center.x + distance * 0.7,
+      center.y + distance * 0.7,
+      center.z + distance * 0.7
+    );
+
+    let progress = 0;
+    const duration = 600; // ms
+    const startTime = Date.now();
+
+    const animateCamera = () => {
+      const elapsed = Date.now() - startTime;
+      progress = Math.min(1, elapsed / duration);
+      // Ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      this.camera.position.lerpVectors(startPos, endPos, eased);
+      this.controls.target.lerpVectors(this.controls.target, center, eased);
+      this.controls.update();
+
+      if (progress < 1) {
+        requestAnimationFrame(animateCamera);
+      }
+    };
+    animateCamera();
+  }
+
 }
 
 export default CityRenderer;

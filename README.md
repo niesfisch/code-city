@@ -36,6 +36,17 @@ Multiple Java and/or Kotlin projects at the top level create distinct base plate
 - Depth -> LOC (lines of code)
 - Type hue + cyclomatic heat -> building color
 
+## Search & Navigation
+
+Use the **Search** panel (sidebar, below the analysis form) to find and focus on specific classes or interfaces:
+
+- Type a name fragment to search (case-insensitive, partial matches work)
+- Matching buildings are **highlighted** in the city; everything else is dimmed
+- Click a result to smoothly focus the camera on that building and show its metrics
+- Press `Esc` in the search box to clear the search
+
+This is useful for quickly navigating large codebases or investigating a specific type's complexity and structure.
+
 ## Tech stack
 
 - Java 21
@@ -57,6 +68,12 @@ Multiple Java and/or Kotlin projects at the top level create distinct base plate
 
 Use the scripts in `scripts/` if you want one-command build, start, and smoke-test runs.
 
+Build everything and start in one go (recommended for dev):
+
+```zsh
+./scripts/build-and-start.zsh
+```
+
 Build everything (frontend + backend), run tests, and produce the executable jar:
 
 ```zsh
@@ -75,7 +92,7 @@ Start the packaged app and run a sample REST smoke call against `samples/demo-pr
 ./scripts/start-and-sample-call.zsh
 ```
 
-What the run script does:
+What the sample-call script does:
 
 - Starts `backend/build/libs/code-city.jar` (default port `8080`, override with `PORT=...`)
 - Calls `GET /api/analyze/health`

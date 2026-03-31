@@ -60,6 +60,17 @@
         </form>
 
         <section class="panel stack-md">
+          <div class="section-title">Search</div>
+          <div class="search-form stack-sm">
+            <div class="search-input-row">
+              <input id="searchInput" type="text" placeholder="Find a class or interface..." />
+              <button id="searchClearButton" type="button" class="search-clear-btn" title="Clear search" disabled>×</button>
+            </div>
+            <div id="searchResults" class="search-results muted"></div>
+          </div>
+        </section>
+
+        <section class="panel stack-md">
           <div class="section-title">Legend</div>
           <p class="hint">Types shown in blue are Java, teal are Kotlin</p>
           <ul class="legend">

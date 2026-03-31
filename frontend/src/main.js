@@ -13,6 +13,9 @@ const elements = {
   metrics: document.getElementById('metrics'),
   selection: document.getElementById('selection'),
   metricTooltip: document.getElementById('metricTooltip'),
+  searchInput: document.getElementById('searchInput'),
+  searchClearButton: document.getElementById('searchClearButton'),
+  searchResults: document.getElementById('searchResults'),
   error: document.getElementById('error')
 };
 
@@ -124,6 +127,69 @@ function hideMetricTooltip() {
     return;
   }
   tooltip.classList.add('hidden');
+}
+
+function renderSearchResults(results) {
+  if (!results || results.length === 0) {
+    elements.searchResults.innerHTML = '<div class="muted">No results</div>';
+    return;
+  }
+
+  const html = results.map(result => `
+    <div class="search-result-item" data-mesh-index="${results.indexOf(result)}">
+      <strong>${result.name}</strong>
+      <span>${result.packageName}</span>
+    </div>
+  `).join('');
+
+  elements.searchResults.innerHTML = html;
+
+  // Attach click handlers to focus on each result
+  elements.searchResults.querySelectorAll('.search-result-item').forEach((item, idx) => {
+    item.addEventListener('click', () => {
+      const result = results[idx];
+      renderer.focusOnMesh(result.mesh);
+      renderer.onSelectionChange(result.mesh.userData.selection);
+    });
+  });
+}
+
+function handleSearch(query) {
+  if (!query || !query.trim()) {
+    elements.searchResults.innerHTML = '';
+    renderer.clearSearchHighlight();
+    elements.searchClearButton.disabled = true;
+    return;
+  }
+
+  const matches = renderer.searchByName(query);
+  const matchMeshes = matches.map(m => m.mesh);
+
+  renderer.highlightSearchResults(matchMeshes);
+  renderSearchResults(matches);
+  elements.searchClearButton.disabled = false;
+}
+
+function clearSearch() {
+  elements.searchInput.value = '';
+  handleSearch('');
+}
+
+function setupSearchHandlers() {
+  elements.searchInput.addEventListener('input', event => {
+    handleSearch(event.target.value);
+  });
+
+  elements.searchInput.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      clearSearch();
+    }
+  });
+
+  elements.searchClearButton.addEventListener('click', () => {
+    clearSearch();
+    elements.searchInput.focus();
+  });
 }
 
 function setupMetricTooltips() {
@@ -242,6 +308,9 @@ elements.resetButton.addEventListener('click', () => {
   renderSelection(null);
   elements.metrics.innerHTML = '';
   elements.summary.textContent = 'No project analyzed yet.';
+  elements.searchInput.value = '';
+  elements.searchResults.innerHTML = '';
+  elements.searchClearButton.disabled = true;
   legendItems.forEach(el => el.classList.remove('active'));
   renderer.reset();
   setStatus('Idle');
@@ -249,5 +318,6 @@ elements.resetButton.addEventListener('click', () => {
 
 renderSelection(null);
 setupMetricTooltips();
+setupSearchHandlers();
 setStatus('Idle');
 
