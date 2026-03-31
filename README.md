@@ -1,0 +1,248 @@
+# Code City
+
+<img src="doc/logo.png" alt="Code City logo" width="180" />
+
+Code City turns a Java project into a 3D cityscape.
+
+Packages become plateaus. Classes, interfaces, enums, records, and abstract classes become buildings. The more code and branching a type has, the taller the building gets. The goal is not perfect static analysis theology; the goal is a fast visual feel for structure and complexity.
+
+### Example cityscapes
+
+Multiple Java projects at the top level create distinct base plateaus stacked as nested districts:
+
+![Code City visualization example 1](doc/city1.png)
+
+![Code City visualization example 2](doc/city2.png)
+
+## What it does
+
+- Scans a directory tree for `.java` files
+- Supports include and exclude patterns such as `de.marcelsauer.*` or `*.generated.*`
+- Parses Java source with JavaParser
+- Calculates simple structural metrics per top-level type
+- Renders the result as an interactive 3D city in the browser with Three.js
+- Ships as a Spring Boot application with the frontend bundled into the jar
+- Can also produce platform-specific runtime images via `jpackage`
+
+## How the city mapping works
+
+- Package -> plateau
+- Class/interface/enum/record/abstract class -> building
+- Height -> NOM (number of methods)
+- Width -> NOA (number of attributes/fields)
+- Depth -> LOC (lines of code)
+- Type hue + cyclomatic heat -> building color
+
+## Tech stack
+
+- Java 21
+- Spring Boot 3
+- Gradle Kotlin DSL
+- JavaParser
+- Vite
+- Three.js
+- GitHub Actions
+
+## Quick start
+
+### Prerequisites
+
+- Java 21
+- Internet access for the first Gradle bootstrap and frontend dependency install
+
+### Scripted workflow
+
+Use the scripts in `scripts/` if you want one-command build, start, and smoke-test runs.
+
+Build everything (frontend + backend), run tests, and produce the executable jar:
+
+```zsh
+./scripts/build-all.zsh
+```
+
+Start only (foreground):
+
+```zsh
+./scripts/start-only.zsh
+```
+
+Start the packaged app and run a sample REST smoke call against `samples/demo-project`:
+
+```zsh
+./scripts/start-and-sample-call.zsh
+```
+
+What the run script does:
+
+- Starts `backend/build/libs/code-city.jar` (default port `8080`, override with `PORT=...`)
+- Calls `GET /api/analyze/health`
+- Calls `POST /api/analyze` with a demo payload
+- Prints a short summary (packages, buildings, complexity, analysis time)
+- Stops the app process automatically
+
+### Run tests and build the application
+
+```zsh
+./gradlew clean test backend:bootJar
+```
+
+### Start the packaged application
+
+```zsh
+java -jar backend/build/libs/code-city.jar
+```
+
+Then open:
+
+- `http://localhost:8080`
+
+### Analyze the included demo project
+
+Use this path in the UI (relative to the repo root):
+
+```text
+/home/someuser/samples/demo-project
+```
+
+Include pattern example:
+
+```text
+com.example.demo.*
+```
+
+## Development workflow
+
+### Frontend only
+
+```zsh
+cd frontend
+npm install
+npm run dev
+```
+
+The Vite dev server proxies `/api` to `http://localhost:8080`.
+
+### Backend only
+
+```zsh
+./gradlew :backend:bootRun
+```
+
+### Full build
+
+```zsh
+./gradlew clean test backend:bootJar
+```
+
+## Packaging
+
+### Executable jar
+
+```zsh
+./gradlew :backend:bootJar
+```
+
+Output:
+
+```text
+backend/build/libs/code-city.jar
+```
+
+### Native runtime image
+
+This creates a self-contained runtime image for the current platform.
+
+```zsh
+./gradlew :backend:jpackageImage
+```
+
+Output directory:
+
+```text
+backend/build/jpackage/
+```
+
+Notes:
+
+- CI builds runtime images for Linux, macOS, and Windows.
+- The current setup produces runtime images, not OS installers.
+- If you want installers later, flip `skipInstaller = true` in `backend/build.gradle.kts` and add platform-specific packaging metadata.
+
+## Include and exclude patterns
+
+Patterns are matched against package names and relative file paths.
+
+Examples:
+
+- `de.marcelsauer.*`
+- `com.acme.billing.*`
+- `*.generated.*`
+- `*/test/*`
+
+Comma-separated patterns are also supported.
+
+## API
+
+### Health
+
+```text
+GET /api/analyze/health
+```
+
+### Analyze
+
+```text
+POST /api/analyze
+Content-Type: application/json
+```
+
+Example payload:
+
+```json
+{
+  "path": "/path/to/project",
+  "includePattern": "de.marcelsauer.*",
+  "excludePattern": "*.generated.*"
+}
+```
+
+## Project structure
+
+```text
+backend/                 Spring Boot API and analysis engine
+frontend/                Vite + Three.js frontend
+scripts/                 Helper scripts for build, start-only, and smoke-test runs
+samples/demo-project/    Tiny sample Java project for smoke tests
+.github/workflows/       CI build and packaging
+```
+
+## Limitations
+
+- The metrics are intentionally lightweight, not a full semantic model.
+- Only top-level Java types are rendered as buildings.
+- Very large projects may need future batching or caching.
+- The app reads local files from the path you provide, so run it in a trusted local environment.
+
+## Verification done in this workspace
+
+These checks were run locally while building this repo:
+
+```zsh
+./gradlew cleanTest :backend:test --rerun-tasks
+./gradlew :backend:bootJar
+curl http://127.0.0.1:8080/api/analyze/health
+curl -X POST http://127.0.0.1:8080/api/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"samples/demo-project","includePattern":"com.example.demo.*"}'
+```
+
+The packaged app returned:
+
+- 2 packages
+- 6 buildings
+- 1 interface
+- record support confirmed
+
+## License
+
+MIT. See `LICENSE`.
