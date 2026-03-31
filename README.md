@@ -16,9 +16,9 @@ Multiple Java projects at the top level create distinct base plateaus stacked as
 
 ## What it does
 
-- Scans a directory tree for `.java` files
+- Scans a directory tree for `.java` and `.kt` (Kotlin) files
 - Supports include and exclude patterns such as `de.marcelsauer.*` or `*.generated.*`
-- Parses Java source with JavaParser
+- Parses Java and Kotlin source with JavaParser
 - Calculates simple structural metrics per top-level type
 - Renders the result as an interactive 3D city in the browser with Three.js
 - Ships as a Spring Boot application with the frontend bundled into the jar
@@ -27,7 +27,8 @@ Multiple Java projects at the top level create distinct base plateaus stacked as
 ## How the city mapping works
 
 - Package -> plateau
-- Class/interface/enum/record/abstract class -> building
+- Class/interface/enum/record/abstract class (Java) -> building (blue family colors)
+- Class/interface/object/data class (Kotlin) -> building (teal family colors)
 - Height -> NOM (number of methods)
 - Width -> NOA (number of attributes/fields)
 - Depth -> LOC (lines of code)

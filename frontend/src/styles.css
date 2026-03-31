@@ -274,12 +274,16 @@ button:hover {
   display: inline-block;
 }
 
-.swatch.class { background: #3b82f6; }
-.swatch.abstract { background: #f59e0b; }
-.swatch.interface { background: #8b5cf6; }
-.swatch.record { background: #10b981; }
-.swatch.enum { background: #ef4444; }
-.swatch.plateau { background: #cbd5e1; }
+.swatch.class { background: #4A90E2; }
+.swatch.abstract { background: #FFB347; }
+.swatch.interface { background: #7B68EE; }
+.swatch.record { background: #50C878; }
+.swatch.enum { background: #EF4444; }
+.swatch.kotlin-class { background: #20B2AA; }
+.swatch.kotlin-interface { background: #48D1CC; }
+.swatch.kotlin-object { background: #5F9EA0; }
+.swatch.kotlin-data-class { background: #3FA9A3; }
+.swatch.plateau { background: #CBD5E1; }
 
 .topbar {
   display: flex;

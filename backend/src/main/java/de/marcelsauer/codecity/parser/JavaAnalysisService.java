@@ -127,7 +127,10 @@ public class JavaAnalysisService {
         try (Stream<Path> pathStream = Files.walk(basePath)) {
             return pathStream
                     .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().endsWith(".java"))
+                    .filter(path -> {
+                        String name = path.getFileName().toString();
+                        return name.endsWith(".java") || name.endsWith(".kt");
+                    })
                     .filter(path -> !containsIgnoredDirectory(path))
                     .filter(path -> !excludeTests || !isTestFile(basePath, path))
                     .sorted()
@@ -178,6 +181,15 @@ public class JavaAnalysisService {
 
     private List<Building> extractBuildings(Path basePath, Path javaFile, String includePattern, String excludePattern)
             throws IOException {
+        String fileName = javaFile.getFileName().toString();
+        if (fileName.endsWith(".kt")) {
+            return extractKotlinBuildings(basePath, javaFile, includePattern, excludePattern);
+        }
+        return extractJavaBuildings(basePath, javaFile, includePattern, excludePattern);
+    }
+
+    private List<Building> extractJavaBuildings(Path basePath, Path javaFile, String includePattern, String excludePattern)
+            throws IOException {
         CompilationUnit compilationUnit;
         try {
             ParseResult<CompilationUnit> parseResult = javaParser.parse(javaFile);
@@ -216,6 +228,121 @@ public class JavaAnalysisService {
                 .flatMap(Optional::stream)
                 .toList());
         return buildings;
+    }
+
+    private List<Building> extractKotlinBuildings(Path basePath, Path kotlinFile, String includePattern, String excludePattern)
+            throws IOException {
+        String content = Files.readString(kotlinFile);
+        String packageName = extractKotlinPackage(content);
+        String relativePath = basePath.relativize(kotlinFile).toString().replace('\\', '/');
+
+        if (!matchesPattern(packageName, relativePath, includePattern, excludePattern)) {
+            return List.of();
+        }
+
+        List<Building> buildings = new ArrayList<>();
+        buildings.addAll(extractKotlinClasses(content, packageName, kotlinFile));
+        buildings.addAll(extractKotlinObjects(content, packageName, kotlinFile));
+        buildings.addAll(extractKotlinInterfaces(content, packageName, kotlinFile));
+        return buildings;
+    }
+
+    private String extractKotlinPackage(String content) {
+        for (String line : content.split("\n")) {
+            if (line.trim().startsWith("package ")) {
+                return line.trim().replaceFirst("package\\s+", "").replaceAll("\\s*//.*", "").trim();
+            }
+        }
+        return "(default)";
+    }
+
+    private List<Building> extractKotlinClasses(String content, String packageName, Path file) {
+        List<Building> buildings = new ArrayList<>();
+        Pattern classPattern = Pattern.compile("^\\s*(data\\s+)?class\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?:\\(|:)?");
+        for (String line : content.split("\n")) {
+            if (line.trim().startsWith("class ") || line.trim().startsWith("data class ")) {
+                java.util.regex.Matcher m = classPattern.matcher(line);
+                if (m.find()) {
+                    String className = m.group(2);
+                    boolean isDataClass = line.contains("data class");
+                    String name = className;
+                    BuildingType type = isDataClass ? BuildingType.KOTLIN_DATA_CLASS : BuildingType.KOTLIN_CLASS;
+                    Metrics metrics = extractKotlinMetrics(content, className);
+                    Building b = newBuilding(packageName, name, file, type, metrics);
+                    buildings.add(b);
+                }
+            }
+        }
+        return buildings;
+    }
+
+    private List<Building> extractKotlinObjects(String content, String packageName, Path file) {
+        List<Building> buildings = new ArrayList<>();
+        Pattern objectPattern = Pattern.compile("^\\s*object\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?::)?");
+        for (String line : content.split("\n")) {
+            if (line.trim().startsWith("object ")) {
+                java.util.regex.Matcher m = objectPattern.matcher(line);
+                if (m.find()) {
+                    String objectName = m.group(1);
+                    String name = objectName;
+                    Metrics metrics = extractKotlinMetrics(content, objectName);
+                    Building b = newBuilding(packageName, name, file, BuildingType.KOTLIN_OBJECT, metrics);
+                    buildings.add(b);
+                }
+            }
+        }
+        return buildings;
+    }
+
+    private List<Building> extractKotlinInterfaces(String content, String packageName, Path file) {
+        List<Building> buildings = new ArrayList<>();
+        Pattern interfacePattern = Pattern.compile("^\\s*interface\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(?::)?");
+        for (String line : content.split("\n")) {
+            if (line.trim().startsWith("interface ")) {
+                java.util.regex.Matcher m = interfacePattern.matcher(line);
+                if (m.find()) {
+                    String interfaceName = m.group(1);
+                    String name = interfaceName;
+                    Metrics metrics = extractKotlinMetrics(content, interfaceName);
+                    Building b = newBuilding(packageName, name, file, BuildingType.KOTLIN_INTERFACE, metrics);
+                    buildings.add(b);
+                }
+            }
+        }
+        return buildings;
+    }
+
+    private Metrics extractKotlinMetrics(String content, String typeName) {
+        int methodCount = 0;
+        int fieldCount = 0;
+        int lineCount = content.split("\n").length;
+
+        // Simple heuristic: count "fun " for methods and "val/var " for fields
+        Pattern funPattern = Pattern.compile("\\bfun\\s+");
+        Pattern valVarPattern = Pattern.compile("\\b(val|var)\\s+");
+
+        for (String line : content.split("\n")) {
+            methodCount += funPattern.matcher(line).groupCount();
+            fieldCount += valVarPattern.matcher(line).groupCount();
+        }
+
+        // Kotlin doesn't use constructors the same way, so we'll count primary/secondary constructors
+        int constructorCount = 0;
+        if (content.contains("constructor")) {
+            constructorCount = (int) content.split("constructor").length - 1;
+        }
+
+        double cyclomatic = 1.0 + (double) methodCount * 0.5; // Approximate
+        double complexity = normalizeComplexity(methodCount, fieldCount, constructorCount, cyclomatic, lineCount);
+
+        return Metrics.builder()
+                .methodCount(methodCount)
+                .fieldCount(fieldCount)
+                .constructorCount(constructorCount)
+                .cyclomatic(cyclomatic)
+                .linesOfCode(lineCount)
+                .complexity(complexity)
+                .build();
     }
 
     private boolean matchesPattern(String packageName, String relativePath, String includePattern, String excludePattern) {
