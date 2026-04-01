@@ -12,51 +12,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Kotlin language support** — Code City now analyzes Kotlin source files (`.kt`) alongside Java
   - New building types: `KOTLIN_CLASS`, `KOTLIN_INTERFACE`, `KOTLIN_OBJECT`, `KOTLIN_DATA_CLASS`
   - Kotlin types rendered in teal color family to distinguish from Java types (blue family)
-  - Metrics extraction for Kotlin: methods (`fun`), fields (`val`/`var`), constructors
-  - Pattern-based parsing for Kotlin (complementary to full AST parsing for Java)
-  - Mixed Java/Kotlin projects render both languages together with separate visual identities
+  - Pattern-based Kotlin parsing complements Java AST parsing
 
-- **Hierarchical city layout** — packages are now visually nested as districts instead of isolated islands
-  - Parent packages form base plateaus that contain child packages as elevated districts
-  - Chain-skipping prevents trivial single-child package hierarchies from cluttering the layout
-  - Depth-based plateau colors and heights mirror Wettel CodeCity convention
+- **Advanced code metrics and project telemetry**
+  - Per-project telemetry: analysis duration, files scanned, files parsed, Java/Kotlin file counts
+  - Aggregate metrics: total cyclomatic complexity, avg LOC/type, avg methods/type
+  - Hotspot indicators: most complex type and largest type
+  - Detailed metric reference in `README_metrics.md` with examples and ASCII city illustrations
 
-- **Interactive UI enhancements**
-  - Click-to-focus: clicking a building/plateau locks selection until you click empty space
-  - Metric tooltips: hover over selection metrics to see contextual explanations
-  - Legend filtering: click legend items to highlight/filter specific building types
+- **Candidate filtering and search workflows**
+  - Metric candidate filters with presets and custom threshold rules (`>`, `>=`, `<`, `<=`, `=`)
+  - Preset clusters include ranges such as method count bands and common smell thresholds
+  - Search reset/clear support and result-click camera focus integration
 
-- **Large-project optimization**
-  - Automatic fog and camera scaling based on city size
-  - Ground plane and grid auto-expand for large projects
-  - Z-fighting prevention with epsilon gaps between coplanar surfaces
+- **Improved interaction feedback**
+  - Persistent selection lock with explicit deselection on empty-map click
+  - Visual selection marker above focused buildings (dashed beacon + pulse marker)
+  - Centered analysis overlay with spinner while analysis is in progress
 
-- **Analysis metrics display**
-  - Project analysis duration shown in metrics panel
-  - Wettel CodeCity canonical encoding: Height=NOM, Width=NOA, Depth=LOC
-  - Cyclomatic complexity heat coloring (type hue → orange-red as complexity rises)
+- **Test source filtering controls**
+  - Optional exclusion of test sources via `src/test/java` / `src/test/kotlin`
+  - Test naming patterns supported (e.g., `Test*.java`, `*Test.java`, `*IT.java` and Kotlin equivalents)
+
+- **Developer workflow scripts**
+  - `scripts/build-all.zsh`, `scripts/build-and-start.zsh`, `scripts/start-only.zsh`, and sample-call helper scripts
+  - README instructions updated to use script-first local workflows
+
+- **Documentation and branding assets**
+  - README now includes project logo, screenshots (`doc/city1.png`, `doc/city2.png`), and header demo media
+  - Browser favicon wired to `doc/logo.png`
+  - Explicit note that top-level directory analysis can visualize multiple projects as separate base plateaus
 
 ### Changed
 
-- **Dependency upgrades** (non-breaking)
-  - Spring Boot 3.2.3 → 3.2.8
-  - JavaParser 3.25.4 → 3.26.1
-  - Lombok 1.18.30 → 1.18.34
-  - Apache Commons Lang3 3.14.0 → 3.15.0
-  - Apache Commons IO 2.11.0 → 2.17.0
-  - Vite 7.1.5 → 7.1.11+ (fixes CVE-2025-62522)
-  - Three.js 0.164.1 → 0.165.0
+- **City semantics and layout model**
+  - Package hierarchy now follows Wettel-style district semantics more closely
+  - Related subpackages share base plateau context and stack as nested districts
+  - City framing centers the rendered cityscape and removes off-screen drift
 
-- **Documentation**
-  - README updated to reflect Java + Kotlin support
-  - All path references are now relative and user-agnostic
-  - Contributing guidelines extended for Kotlin development
+- **UI language and labels**
+  - Java-only wording updated to consistently reference Java + Kotlin where applicable
+  - Project metrics and sidebar content expanded for readability and discoverability
+
+- **Dependency upgrades** (non-breaking maintenance updates)
+  - Core backend/frontend dependencies refreshed and CVE checks documented
+  - License compatibility inventory maintained in `DEPENDENCIES.md`
 
 ### Fixed
 
-- **Security**: Removed personal SSH key references from README
-- **Rendering**: Eliminated grid and ground plane visual clutter
-- **Large projects**: Fixed camera/fog positioning that caused "fog wall" effect at distance
+- **Rendering and navigation**
+  - Eliminated initial "cloud/fog wall" effect on larger projects by recalibrating camera/fog scaling
+  - Fixed selection/details panel overflow issues on the right column
+  - Improved focus readability in dense areas with explicit selection marker visuals
+
+- **Analysis UX**
+  - Fixed analysis wait overlay state handling so it only appears during active analysis
+
+- **Repository hygiene**
+  - Removed personal machine-specific path/name references from tracked content
 
 ### Removed
 

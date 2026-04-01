@@ -7,6 +7,7 @@ const elements = {
   includePattern: document.getElementById('includePattern'),
   excludePattern: document.getElementById('excludePattern'),
   excludeTests: document.getElementById('excludeTests'),
+  analyzeButton: document.getElementById('analyzeButton'),
   resetButton: document.getElementById('resetButton'),
   status: document.getElementById('status'),
   summary: document.getElementById('summary'),
@@ -16,7 +17,23 @@ const elements = {
   searchInput: document.getElementById('searchInput'),
   searchClearButton: document.getElementById('searchClearButton'),
   searchResults: document.getElementById('searchResults'),
-  error: document.getElementById('error')
+  error: document.getElementById('error'),
+  // metric filter
+  quickFilterChips: document.getElementById('quickFilterChips'),
+  filterMetric: document.getElementById('filterMetric'),
+  filterOp: document.getElementById('filterOp'),
+  filterValue: document.getElementById('filterValue'),
+  filterApplyBtn: document.getElementById('filterApplyBtn'),
+  filterResultBar: document.getElementById('filterResultBar'),
+  filterResultCount: document.getElementById('filterResultCount'),
+  filterClearBtn: document.getElementById('filterClearBtn'),
+  filterResultList: document.getElementById('filterResultList'),
+  analysisOverlay: document.getElementById('analysisOverlay'),
+  analysisOverlayMessage: document.getElementById('analysisOverlayMessage'),
+  apiUnavailableOverlay: document.getElementById('apiUnavailableOverlay'),
+  apiUnavailableMessage: document.getElementById('apiUnavailableMessage'),
+  apiUnavailableCloseButton: document.getElementById('apiUnavailableCloseButton'),
+  apiUnavailableRetryButton: document.getElementById('apiUnavailableRetryButton')
 };
 
 const METRIC_EXPLANATIONS = {
@@ -34,15 +51,155 @@ const METRIC_EXPLANATIONS = {
   averageHeight: 'Average building height in this package. Height mainly follows method count.'
 };
 
+// ── Metric filter ───────────────────────────────────────────────────────────
+
+/**
+ * Pre-defined smell presets shown as quick-filter chips.
+ * predicateFn receives the raw Metrics object straight from the backend.
+ */
+const QUICK_FILTERS = [
+  {
+    id: 'methods-10-20',
+    label: 'Methods 10-20',
+    tooltip: 'Types with 10 to 20 methods \u2014 getting chunky',
+    displayKey: 'methodCount',
+    displayLabel: 'methods',
+    predicate: m => m.methodCount >= 10 && m.methodCount <= 20
+  },
+  {
+    id: 'methods-20-plus',
+    label: 'Methods 20+',
+    tooltip: 'Types with more than 20 methods \u2014 strong God Class candidate',
+    displayKey: 'methodCount',
+    displayLabel: 'methods',
+    predicate: m => m.methodCount > 20
+  },
+  {
+    id: 'loc-100-plus',
+    label: 'LOC > 100',
+    tooltip: 'Types above 100 LOC \u2014 worth a look',
+    displayKey: 'linesOfCode',
+    displayLabel: 'LOC',
+    predicate: m => m.linesOfCode > 100
+  },
+  {
+    id: 'loc-200-plus',
+    label: 'LOC > 200',
+    tooltip: 'Types above 200 LOC \u2014 strong refactor candidate',
+    displayKey: 'linesOfCode',
+    displayLabel: 'LOC',
+    predicate: m => m.linesOfCode > 200
+  },
+  {
+    id: 'cyclomatic-10-plus',
+    label: 'Cyclomatic > 10',
+    tooltip: 'Types with summed cyclomatic complexity above 10',
+    displayKey: 'cyclomatic',
+    displayLabel: 'cyclomatic',
+    predicate: m => m.cyclomatic > 10
+  },
+  {
+    id: 'cyclomatic-30-plus',
+    label: 'Cyclomatic > 30',
+    tooltip: 'Types with many execution paths \u2014 testing pain ahead',
+    displayKey: 'cyclomatic',
+    displayLabel: 'cyclomatic',
+    predicate: m => m.cyclomatic > 30
+  },
+  {
+    id: 'complexity-10-plus',
+    label: 'Complexity > 10',
+    tooltip: 'Composite complexity score above 10 \u2014 likely gnarly',
+    displayKey: 'complexity',
+    displayLabel: 'score',
+    predicate: m => m.complexity > 10
+  },
+  {
+    id: 'huge-loc',
+    label: 'LOC > 500',
+    tooltip: 'Types above 500 LOC \u2014 yeah, that thing needs help',
+    displayKey: 'linesOfCode',
+    displayLabel: 'LOC',
+    predicate: m => m.linesOfCode > 500
+  },
+  {
+    id: 'high-score',
+    label: 'Score > 8',
+    tooltip: 'Composite complexity score > 8 \u2014 investigate this type',
+    displayKey: 'complexity',
+    displayLabel: 'score',
+    predicate: m => m.complexity > 8
+  },
+  {
+    id: 'long-params',
+    label: 'Long Params',
+    tooltip: 'Max method params \u2265 5 \u2014 consider a parameter object',
+    displayKey: 'maxMethodParameters',
+    displayLabel: 'max params',
+    predicate: m => m.maxMethodParameters >= 5
+  },
+  {
+    id: 'util-blob',
+    label: 'Utility Blob',
+    tooltip: 'Static methods > 5 \u2014 procedural code in an OO costume',
+    displayKey: 'staticMethodCount',
+    displayLabel: 'static',
+    predicate: m => m.staticMethodCount > 5
+  },
+  {
+    id: 'no-docs',
+    label: 'No Docs',
+    tooltip: 'LOC > 50 with zero comment lines \u2014 document this',
+    displayKey: 'linesOfCode',
+    displayLabel: 'LOC',
+    predicate: m => m.commentLineCount === 0 && m.linesOfCode > 50
+  },
+  {
+    id: 'nested',
+    label: 'Nested Types',
+    tooltip: 'Has inner type declarations \u2014 consider extracting them',
+    displayKey: 'innerTypeCount',
+    displayLabel: 'inner types',
+    predicate: m => m.innerTypeCount > 0
+  }
+];
+
+/** Available metrics for the custom filter dropdown. */
+const FILTER_METRICS = [
+  { key: 'methodCount',         label: 'Methods (NOM)' },
+  { key: 'fieldCount',          label: 'Fields (NOA)' },
+  { key: 'linesOfCode',         label: 'LOC' },
+  { key: 'cyclomatic',          label: 'Cyclomatic' },
+  { key: 'complexity',          label: 'Complexity score' },
+  { key: 'maxMethodParameters', label: 'Max params' },
+  { key: 'staticMethodCount',   label: 'Static methods' },
+  { key: 'innerTypeCount',      label: 'Inner types' },
+  { key: 'commentLineCount',    label: 'Comment lines' }
+];
+
+const FILTER_OPS = [
+  { op: '>',  label: '>'  },
+  { op: '>=', label: '>=' },
+  { op: '<',  label: '<'  },
+  { op: '<=', label: '<=' },
+  { op: '==', label: '='  }
+];
+
 const renderer = new CityRenderer('viewer', {
   onSelectionChange: renderSelection
 });
+
+let activeQuickFilter = null;
+let apiUnavailableDismissed = false;
 
 // Legend highlight filter
 const legendItems = document.querySelectorAll('[data-highlight-type]');
 legendItems.forEach(item => {
   item.addEventListener('click', () => {
     const typeKey = item.getAttribute('data-highlight-type');
+    // legend filter is mutually exclusive with metric filter and name search
+    clearMetricFilter();
+    clearSearch();
     renderer.highlightByType(typeKey);
     // toggle active class — renderer.highlightByType already toggles internally
     const willBeActive = renderer.activeHighlight === typeKey;
@@ -70,6 +227,109 @@ function showError(message) {
 function hideError() {
   elements.error.textContent = '';
   elements.error.classList.add('hidden');
+}
+
+function showApiUnavailableOverlay(message, options = {}) {
+  const { force = false } = options;
+  if (apiUnavailableDismissed && !force) {
+    return;
+  }
+
+  elements.apiUnavailableMessage.textContent = message;
+  elements.apiUnavailableOverlay.classList.remove('hidden');
+  elements.apiUnavailableOverlay.setAttribute('aria-hidden', 'false');
+}
+
+function hideApiUnavailableOverlay({ resetDismissed = false } = {}) {
+  elements.apiUnavailableOverlay.classList.add('hidden');
+  elements.apiUnavailableOverlay.setAttribute('aria-hidden', 'true');
+  if (resetDismissed) {
+    apiUnavailableDismissed = false;
+  }
+}
+
+function dismissApiUnavailableOverlay() {
+  apiUnavailableDismissed = true;
+  hideApiUnavailableOverlay();
+}
+
+function isApiUnavailableError(error) {
+  if (!error) {
+    return false;
+  }
+
+  const message = String(error.message ?? error);
+  return error instanceof TypeError
+    || /Failed to fetch/i.test(message)
+    || /NetworkError/i.test(message)
+    || /Load failed/i.test(message)
+    || /ERR_CONNECTION_REFUSED/i.test(message);
+}
+
+async function probeApiAvailability({ forceOverlay = false } = {}) {
+  try {
+    const response = await fetch('/api/analyze/health', {
+      cache: 'no-store',
+      headers: {
+        Accept: 'application/json, text/plain, */*'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Health endpoint returned ${response.status}`);
+    }
+
+    hideApiUnavailableOverlay({ resetDismissed: true });
+    if (elements.status.textContent === 'Backend unavailable') {
+      setStatus('Idle');
+    }
+    return true;
+  } catch {
+    setStatus('Backend unavailable');
+    showApiUnavailableOverlay(
+      'The frontend cannot reach `/api/analyze/health`. Start Code City, verify the port, or open the app through the packaged backend server.',
+      { force: forceOverlay }
+    );
+    return false;
+  }
+}
+
+function setBusyState(isBusy, message = 'Parsing sources, collecting metrics, and building the city. Grab a sip.') {
+  elements.analysisOverlay.classList.toggle('hidden', !isBusy);
+  elements.analysisOverlay.setAttribute('aria-hidden', String(!isBusy));
+  elements.analysisOverlayMessage.textContent = message;
+
+  if (isBusy) {
+    hideApiUnavailableOverlay();
+  }
+
+  elements.form.setAttribute('aria-busy', String(isBusy));
+
+  const controls = [
+    elements.projectPath,
+    elements.includePattern,
+    elements.excludePattern,
+    elements.excludeTests,
+    elements.analyzeButton,
+    elements.resetButton,
+    elements.searchInput,
+    elements.searchClearButton,
+    elements.filterMetric,
+    elements.filterOp,
+    elements.filterValue,
+    elements.filterApplyBtn,
+    elements.filterClearBtn
+  ];
+
+  controls.forEach(control => {
+    if (control) {
+      control.disabled = isBusy;
+    }
+  });
+
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.disabled = isBusy;
+  });
 }
 
 function renderSelection(selection) {
@@ -135,21 +395,18 @@ function renderSearchResults(results) {
     return;
   }
 
-  const html = results.map(result => `
-    <div class="search-result-item" data-mesh-index="${results.indexOf(result)}">
+  elements.searchResults.innerHTML = results.map((result, idx) => `
+    <div class="search-result-item" data-mesh-index="${idx}">
       <strong>${result.name}</strong>
       <span>${result.packageName}</span>
     </div>
   `).join('');
 
-  elements.searchResults.innerHTML = html;
-
   // Attach click handlers to focus on each result
   elements.searchResults.querySelectorAll('.search-result-item').forEach((item, idx) => {
     item.addEventListener('click', () => {
       const result = results[idx];
-      renderer.focusOnMesh(result.mesh);
-      renderer.onSelectionChange(result.mesh.userData.selection);
+      renderer.selectMesh(result.mesh, { focusCamera: true });
     });
   });
 }
@@ -162,6 +419,10 @@ function handleSearch(query) {
     return;
   }
 
+  // name search is mutually exclusive with metric filter and legend type filter
+  clearMetricFilter();
+  clearLegendFilter();
+
   const matches = renderer.searchByName(query);
   const matchMeshes = matches.map(m => m.mesh);
 
@@ -172,8 +433,195 @@ function handleSearch(query) {
 
 function clearSearch() {
   elements.searchInput.value = '';
-  handleSearch('');
+  elements.searchResults.innerHTML = '';
+  renderer.clearSearchHighlight();
+  elements.searchClearButton.disabled = true;
 }
+
+function clearLegendFilter() {
+  legendItems.forEach(el => el.classList.remove('active'));
+  renderer.clearHighlight();
+}
+
+function clearAllOverlayFilters() {
+  clearSearch();
+  clearMetricFilter();
+  clearLegendFilter();
+}
+
+// ── Metric filter ─────────────────────────────────────────────────────────
+
+/**
+ * Apply a metric filter: dim all non-matching buildings, show result list.
+ * Mutually exclusive with name search and legend type filter.
+ */
+function applyMetricFilter(predicate, displayKey, displayLabel) {
+  clearSearch();
+  clearLegendFilter();
+
+  const matches = renderer.filterBuildings(predicate);
+  renderer.highlightByMetricFilter(matches.map(m => m.mesh));
+  renderFilterResults(matches, displayKey, displayLabel);
+}
+
+/** Clear metric filter UI and renderer state. */
+function clearMetricFilter() {
+  activeQuickFilter = null;
+  elements.quickFilterChips?.querySelectorAll('.filter-chip')
+    .forEach(c => c.classList.remove('active'));
+  renderer.clearMetricFilter();
+  elements.filterResultBar?.classList.add('hidden');
+  if (elements.filterResultList) {
+    elements.filterResultList.innerHTML = '';
+  }
+}
+
+/** Render the metric filter result list. */
+function renderFilterResults(matches, displayKey, displayLabel) {
+  const { filterResultBar, filterResultCount, filterResultList } = elements;
+  filterResultBar.classList.remove('hidden');
+
+  if (matches.length === 0) {
+    filterResultCount.textContent = '0 matches';
+    filterResultList.innerHTML =
+      '<div class="muted" style="font-size:0.82rem">No buildings match this filter.</div>';
+    return;
+  }
+
+  filterResultCount.textContent =
+    `${matches.length} match${matches.length === 1 ? '' : 'es'}`;
+
+  // Sort worst offenders first (highest metric value at top)
+  const sorted = displayKey
+    ? [...matches].sort(
+        (a, b) => (b.rawMetrics?.[displayKey] ?? 0) - (a.rawMetrics?.[displayKey] ?? 0)
+      )
+    : matches;
+
+  const MAX_SHOWN = 15;
+  const shown = sorted.slice(0, MAX_SHOWN);
+  const overflow = sorted.length - MAX_SHOWN;
+
+  const listHtml = shown.map(result => {
+    const val = displayKey && result.rawMetrics != null
+      ? result.rawMetrics[displayKey]
+      : null;
+    const badge = val != null
+      ? `<span class="filter-result-badge">${formatFilterVal(val)} ${displayLabel}</span>`
+      : '';
+    return `
+      <div class="search-result-item filter-result-item">
+        <div class="filter-result-header"><strong>${result.name}</strong>${badge}</div>
+        <span>${result.packageName}</span>
+      </div>`;
+  }).join('');
+
+  const moreHtml = overflow > 0
+    ? `<div class="filter-more-hint">...and ${overflow} more</div>`
+    : '';
+
+  filterResultList.innerHTML = listHtml + moreHtml;
+
+  shown.forEach((result, idx) => {
+    const items = filterResultList.querySelectorAll('.filter-result-item');
+    items[idx]?.addEventListener('click', () => {
+      renderer.selectMesh(result.mesh, { focusCamera: true });
+    });
+  });
+}
+
+function formatFilterVal(val) {
+  if (typeof val !== 'number') return String(val);
+  return Number.isInteger(val) ? String(val) : val.toFixed(2);
+}
+
+function setupMetricFilterHandlers() {
+  // Populate metric select
+  FILTER_METRICS.forEach(({ key, label }) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    elements.filterMetric.appendChild(opt);
+  });
+
+  // Populate operator select
+  FILTER_OPS.forEach(({ op, label }) => {
+    const opt = document.createElement('option');
+    opt.value = op;
+    opt.textContent = label;
+    elements.filterOp.appendChild(opt);
+  });
+
+  // Build quick-filter chips
+  elements.quickFilterChips.innerHTML = QUICK_FILTERS.map(f =>
+    `<button type="button" class="filter-chip" data-filter-id="${f.id}" title="${f.tooltip}">${f.label}</button>`
+  ).join('');
+
+  elements.quickFilterChips.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const filterId = chip.dataset.filterId;
+
+      if (activeQuickFilter === filterId) {
+        // Toggle off
+        clearMetricFilter();
+        return;
+      }
+
+      const filter = QUICK_FILTERS.find(f => f.id === filterId);
+      if (!filter) return;
+
+      elements.quickFilterChips.querySelectorAll('.filter-chip')
+        .forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      activeQuickFilter = filterId;
+
+      applyMetricFilter(filter.predicate, filter.displayKey, filter.displayLabel);
+    });
+  });
+
+  // Custom filter apply
+  elements.filterApplyBtn.addEventListener('click', applyCustomFilter);
+  elements.filterValue.addEventListener('keydown', event => {
+    if (event.key === 'Enter') applyCustomFilter();
+  });
+
+  // Clear button
+  elements.filterClearBtn.addEventListener('click', () => {
+    clearMetricFilter();
+    renderer.clearMetricFilter();
+  });
+}
+
+function applyCustomFilter() {
+  const metricKey = elements.filterMetric.value;
+  const op = elements.filterOp.value;
+  const threshold = parseFloat(elements.filterValue.value);
+  if (isNaN(threshold)) return;
+
+  const metricEntry = FILTER_METRICS.find(m => m.key === metricKey);
+  const displayLabel = metricEntry?.label ?? metricKey;
+
+  // Clear any active quick-filter chip
+  activeQuickFilter = null;
+  elements.quickFilterChips.querySelectorAll('.filter-chip')
+    .forEach(c => c.classList.remove('active'));
+
+  const predicate = raw => {
+    const v = raw[metricKey];
+    switch (op) {
+      case '>':  return v > threshold;
+      case '>=': return v >= threshold;
+      case '<':  return v < threshold;
+      case '<=': return v <= threshold;
+      case '==': return v === threshold;
+      default:   return false;
+    }
+  };
+
+  applyMetricFilter(predicate, metricKey, displayLabel);
+}
+
+// ── Search ─────────────────────────────────────────────────────────────────
 
 function setupSearchHandlers() {
   elements.searchInput.addEventListener('input', event => {
@@ -269,25 +717,32 @@ async function analyzeProject() {
   }
 
   window.localStorage.setItem('code-city.projectPath', payload.path);
+  setBusyState(true);
   setStatus('Analyzing...');
 
-  const response = await fetch('/api/analyze', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Analysis failed.' }));
-    throw new Error(error.message || 'Analysis failed.');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Analysis failed.' }));
+      throw new Error(error.message || 'Analysis failed.');
+    }
+
+    const cityscape = await response.json();
+    hideApiUnavailableOverlay({ resetDismissed: true });
+    clearAllOverlayFilters();
+    renderer.render(cityscape);
+    renderMetrics(cityscape);
+    setStatus('Ready');
+  } finally {
+    setBusyState(false);
   }
-
-  const cityscape = await response.json();
-  renderer.render(cityscape);
-  renderMetrics(cityscape);
-  setStatus('Ready');
 }
 
 elements.form.addEventListener('submit', async event => {
@@ -295,29 +750,50 @@ elements.form.addEventListener('submit', async event => {
   try {
     await analyzeProject();
   } catch (error) {
+    if (isApiUnavailableError(error)) {
+      showApiUnavailableOverlay(
+        'The analyze request could not reach the REST API. Start the backend, verify the URL/port, then retry.',
+        { force: true }
+      );
+      hideError();
+      setStatus('Backend unavailable');
+    } else {
+      showError(error.message);
+      setStatus('Failed');
+    }
+
     renderer.reset();
     elements.summary.textContent = 'No project analyzed yet.';
     elements.metrics.innerHTML = '';
-    showError(error.message);
-    setStatus('Failed');
   }
 });
 
 elements.resetButton.addEventListener('click', () => {
+  setBusyState(false);
   hideError();
   renderSelection(null);
   elements.metrics.innerHTML = '';
   elements.summary.textContent = 'No project analyzed yet.';
-  elements.searchInput.value = '';
-  elements.searchResults.innerHTML = '';
-  elements.searchClearButton.disabled = true;
-  legendItems.forEach(el => el.classList.remove('active'));
+  clearAllOverlayFilters();
   renderer.reset();
   setStatus('Idle');
+});
+
+elements.apiUnavailableCloseButton.addEventListener('click', () => {
+  dismissApiUnavailableOverlay();
+});
+
+elements.apiUnavailableRetryButton.addEventListener('click', async () => {
+  const wasAvailable = await probeApiAvailability({ forceOverlay: true });
+  if (wasAvailable) {
+    setStatus('Idle');
+  }
 });
 
 renderSelection(null);
 setupMetricTooltips();
 setupSearchHandlers();
+setupMetricFilterHandlers();
 setStatus('Idle');
+probeApiAvailability();
 

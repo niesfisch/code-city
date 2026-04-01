@@ -18,6 +18,7 @@ class CityRenderer {
     this.pickableMeshes = [];
     this.activeHighlight = null;
     this.lockedSelectionMesh = null;
+    this.selectionMarker = null;
     this.mouse = new THREE.Vector2();
     this.raycaster = new THREE.Raycaster();
 
@@ -89,20 +90,15 @@ class CityRenderer {
     const hit = this.raycaster.intersectObjects(this.pickableMeshes, false)[0];
     const hitMesh = hit?.object ?? null;
 
-    for (const mesh of this.pickableMeshes) {
-      mesh.scale.set(1, 1, 1);
-    }
+    this.resetMeshScales();
 
     if (lockSelection) {
       if (!hitMesh) {
-        this.lockedSelectionMesh = null;
-        this.onSelectionChange(null);
+        this.clearSelectedMesh();
         return;
       }
 
-      this.lockedSelectionMesh = hitMesh;
-      hitMesh.scale.set(1.04, 1.02, 1.04);
-      this.onSelectionChange(hitMesh.userData.selection);
+      this.selectMesh(hitMesh);
       return;
     }
 
@@ -118,6 +114,118 @@ class CityRenderer {
 
     hitMesh.scale.set(1.04, 1.02, 1.04);
     this.onSelectionChange(hitMesh.userData.selection);
+  }
+
+  resetMeshScales() {
+    for (const mesh of this.pickableMeshes) {
+      mesh.scale.set(1, 1, 1);
+    }
+  }
+
+  selectMesh(mesh, options = {}) {
+    const { focusCamera = false } = options;
+
+    this.resetMeshScales();
+
+    if (!mesh) {
+      this.clearSelectedMesh();
+      return;
+    }
+
+    this.lockedSelectionMesh = mesh;
+    mesh.scale.set(1.04, 1.02, 1.04);
+    this.updateSelectionMarker(mesh);
+    this.onSelectionChange(mesh.userData.selection);
+
+    if (focusCamera) {
+      this.focusOnMesh(mesh);
+    }
+  }
+
+  clearSelectedMesh() {
+    this.lockedSelectionMesh = null;
+    this.clearSelectionMarker();
+    this.resetMeshScales();
+    this.onSelectionChange(null);
+  }
+
+  updateSelectionMarker(mesh) {
+    this.clearSelectionMarker();
+
+    if (!mesh || mesh.userData.typeKey === 'PLATEAU') {
+      return;
+    }
+
+    const box = new THREE.Box3().setFromObject(mesh);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+
+    const markerHeight = Math.max(6, Math.min(14, size.y * 0.45 + 3));
+    const marker = this.createSelectionMarker(markerHeight);
+    marker.position.set(center.x, box.max.y + 0.4, center.z);
+
+    this.selectionMarker = marker;
+    this.scene.add(marker);
+  }
+
+  createSelectionMarker(lineHeight) {
+    const group = new THREE.Group();
+
+    const lineMaterial = new THREE.LineDashedMaterial({
+      color: 0xfbbf24,
+      dashSize: 0.8,
+      gapSize: 0.45,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: false
+    });
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, lineHeight, 0)
+    ]);
+    const line = new THREE.Line(lineGeometry, lineMaterial);
+    line.computeLineDistances();
+    line.renderOrder = 1000;
+    group.add(line);
+
+    const orbMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false
+    });
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.52, 18, 18), orbMaterial);
+    orb.position.set(0, lineHeight + 0.55, 0);
+    orb.renderOrder = 1001;
+    group.add(orb);
+
+    const haloMaterial = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24,
+      transparent: true,
+      opacity: 0.55,
+      depthTest: false
+    });
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.82, 18, 18), haloMaterial);
+    halo.position.copy(orb.position);
+    halo.renderOrder = 999;
+    group.add(halo);
+
+    group.userData.orb = orb;
+    group.userData.halo = halo;
+    return group;
+  }
+
+  clearSelectionMarker() {
+    if (!this.selectionMarker) {
+      return;
+    }
+
+    this.selectionMarker.traverse(child => {
+      child.geometry?.dispose?.();
+      child.material?.dispose?.();
+    });
+    this.scene.remove(this.selectionMarker);
+    this.selectionMarker = null;
   }
 
   render(cityscape) {
@@ -189,6 +297,7 @@ class CityRenderer {
     mesh.userData.originalTransparent = false;
     mesh.userData.originalEmissiveHex = baseEmissiveHex;
     mesh.userData.highlightEmissiveHex = highlightEmissiveHex;
+    mesh.userData.rawMetrics = building.metrics;
     mesh.userData.selection = {
       kind: 'Building',
       name: building.name,
@@ -200,7 +309,11 @@ class CityRenderer {
       constructors: building.metrics.constructorCount,
       linesOfCode: building.metrics.linesOfCode,
       complexity: building.metrics.complexity.toFixed(2),
-      cyclomatic: building.metrics.cyclomatic.toFixed(2)
+      cyclomatic: building.metrics.cyclomatic.toFixed(2),
+      maxMethodParameters: building.metrics.maxMethodParameters,
+      staticMethodCount: building.metrics.staticMethodCount,
+      innerTypeCount: building.metrics.innerTypeCount,
+      commentLineCount: building.metrics.commentLineCount
     };
     this.pickableMeshes.push(mesh);
     return mesh;
@@ -298,6 +411,7 @@ class CityRenderer {
   }
 
   clear() {
+    this.clearSelectionMarker();
     while (this.cityGroup.children.length > 0) {
       const child = this.cityGroup.children.pop();
       child.geometry.dispose();
@@ -320,6 +434,15 @@ class CityRenderer {
 
   animate() {
     requestAnimationFrame(() => this.animate());
+
+    if (this.selectionMarker) {
+      const t = performance.now() * 0.004;
+      const pulse = 1 + Math.sin(t) * 0.09;
+      this.selectionMarker.userData.orb.scale.setScalar(pulse);
+      this.selectionMarker.userData.halo.scale.setScalar(1.05 + Math.sin(t) * 0.12);
+      this.selectionMarker.userData.halo.material.opacity = 0.45 + ((Math.sin(t) + 1) * 0.08);
+    }
+
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
@@ -430,6 +553,60 @@ class CityRenderer {
       }
     };
     animateCamera();
+  }
+
+  /**
+   * Filter building meshes by a predicate against their raw metrics.
+   * Returns an array of { mesh, name, fullName, packageName, type, rawMetrics }.
+   */
+  filterBuildings(predicateFn) {
+    return this.pickableMeshes
+      .filter(mesh => mesh.userData.typeKey !== 'PLATEAU')
+      .filter(mesh => {
+        const raw = mesh.userData.rawMetrics;
+        return raw != null && predicateFn(raw);
+      })
+      .map(mesh => ({
+        mesh,
+        name: mesh.userData.selection.name,
+        fullName: mesh.userData.selection.fullName,
+        packageName: mesh.userData.selection.packageName,
+        type: mesh.userData.selection.type,
+        rawMetrics: mesh.userData.rawMetrics
+      }));
+  }
+
+  /**
+   * Highlight buildings matching a metric filter and dim everything else.
+   * Empty array clears the filter.
+   */
+  highlightByMetricFilter(matchingMeshes) {
+    if (!matchingMeshes || matchingMeshes.length === 0) {
+      this.clearMetricFilter();
+      return;
+    }
+    const matchSet = new Set(matchingMeshes);
+    for (const mesh of this.pickableMeshes) {
+      mesh.material.transparent = true;
+      if (matchSet.has(mesh)) {
+        mesh.material.opacity = 1.0;
+        mesh.material.emissive.setHex(mesh.userData.highlightEmissiveHex);
+      } else {
+        mesh.material.opacity = 0.12;
+        mesh.material.emissive.setHex(0x000000);
+      }
+      mesh.material.needsUpdate = true;
+    }
+  }
+
+  /** Restore all materials to their original state (clears any overlay). */
+  clearMetricFilter() {
+    for (const mesh of this.pickableMeshes) {
+      mesh.material.transparent = mesh.userData.originalTransparent;
+      mesh.material.opacity = mesh.userData.originalOpacity;
+      mesh.material.emissive.setHex(mesh.userData.originalEmissiveHex);
+      mesh.material.needsUpdate = true;
+    }
   }
 
 }

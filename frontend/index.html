@@ -71,6 +71,25 @@
         </section>
 
         <section class="panel stack-md">
+          <div class="section-title">Metric Filter</div>
+          <p class="hint">Highlight candidates by preset clusters or a custom threshold like LOC &gt; 100, cyclomatic &gt; 10, or complexity &gt; 10.</p>
+          <div id="quickFilterChips" class="filter-chips"></div>
+          <div class="custom-filter-row">
+            <select id="filterMetric" title="Metric"></select>
+            <select id="filterOp" class="filter-op-select" title="Operator"></select>
+            <input id="filterValue" type="number" min="0" step="any" value="10"
+                   class="filter-value-input" title="Threshold value" />
+            <button id="filterApplyBtn" type="button" class="secondary filter-apply-btn"
+                    title="Apply custom filter">Go</button>
+          </div>
+          <div id="filterResultBar" class="filter-result-bar hidden">
+            <span id="filterResultCount" class="muted"></span>
+            <button id="filterClearBtn" type="button" class="secondary small-btn">Clear</button>
+          </div>
+          <div id="filterResultList" class="filter-result-list"></div>
+        </section>
+
+        <section class="panel stack-md">
           <div class="section-title">Legend</div>
           <p class="hint">Types shown in blue are Java, teal are Kotlin</p>
           <ul class="legend">
@@ -112,6 +131,28 @@
       </aside>
 
       <main class="viewer-shell">
+        <div id="analysisOverlay" class="analysis-overlay hidden" aria-hidden="true">
+          <div class="analysis-overlay__card" role="status" aria-live="polite" aria-atomic="true">
+            <div class="analysis-overlay__spinner" aria-hidden="true"></div>
+            <div class="analysis-overlay__title">Analyzing project...</div>
+            <div id="analysisOverlayMessage" class="analysis-overlay__message">Parsing sources, collecting metrics, and building the city. Grab a sip.</div>
+          </div>
+        </div>
+
+        <div id="apiUnavailableOverlay" class="api-overlay hidden" aria-hidden="true">
+          <div class="api-overlay__card panel" role="alert" aria-live="polite" aria-atomic="true">
+            <button id="apiUnavailableCloseButton" type="button" class="api-overlay__close" aria-label="Close API unavailable hint">×</button>
+            <div class="api-overlay__eyebrow">REST API unavailable</div>
+            <div class="api-overlay__title">Can’t reach the backend right now.</div>
+            <div id="apiUnavailableMessage" class="api-overlay__message">
+              Start the app, check the backend port, or retry once the API is up again.
+            </div>
+            <div class="api-overlay__actions">
+              <button id="apiUnavailableRetryButton" type="button" class="secondary small-btn">Retry connection</button>
+            </div>
+          </div>
+        </div>
+
         <div class="topbar panel">
           <div>
             <div class="section-title">Project metrics</div>

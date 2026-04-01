@@ -2,9 +2,9 @@
 
 <img src="doc/logo.png" alt="Code City logo" width="180" />
 
-<video src="doc/log4j_city.mp4" controls width="960"></video>
+Click on Image to See a Video Sample of Code City in Action
 
-[If the video does not render inline, open it directly.](doc/log4j_city.mp4)
+[![Video Sample](https://img.youtube.com/vi/sKPnl18Tad8/0.jpg)](https://youtu.be/sKPnl18Tad8)
 
 Code City turns a Java or Kotlin project into a 3D cityscape.
 
@@ -48,6 +48,13 @@ Use the **Search** panel (sidebar, below the analysis form) to find and focus on
 - Matching buildings are **highlighted** in the city; everything else is dimmed
 - Click a result to smoothly focus the camera on that building and show its metrics
 - Press `Esc` in the search box to clear the search
+
+Use the **Metric Filter** panel to highlight likely refactoring candidates by thresholds or clusters:
+
+- Click preset chips such as `LOC > 100`, `Cyclomatic > 10`, `Complexity > 10`, or method-count ranges
+- Or build your own filter with a metric, an operator, and a threshold value
+- Matching buildings are highlighted and listed, sorted by the strongest offenders first
+- Click a result to focus that building and inspect its metrics in the selection panel
 
 This is useful for quickly navigating large codebases or investigating a specific type's complexity and structure.
 
@@ -239,6 +246,11 @@ scripts/                 Helper scripts for build, start-only, and smoke-test ru
 samples/demo-project/    Tiny sample Java project for smoke tests
 .github/workflows/       CI build and packaging
 ```
+
+## Metrics reference
+
+For a detailed explanation of every metric collected, how it maps to the visual cityscape,
+healthy value ranges, and red-flag patterns, see **[README_metrics.md](README_metrics.md)**.
 
 ## Limitations
 
