@@ -4,6 +4,7 @@ import CityRenderer from './main/js/CityRenderer.js';
 const elements = {
   form: document.getElementById('analysis-form'),
   projectPath: document.getElementById('projectPath'),
+  folderPickerBtn: document.getElementById('folderPickerBtn'),
   includePattern: document.getElementById('includePattern'),
   excludePattern: document.getElementById('excludePattern'),
   excludeTests: document.getElementById('excludeTests'),
@@ -214,6 +215,130 @@ const savedPath = window.localStorage.getItem('code-city.projectPath');
 if (savedPath) {
   elements.projectPath.value = savedPath;
 }
+
+// ── Directory Browser ───────────────────────────────────────────────────────
+
+/**
+ * Fetch and display directory contents for browsing projects.
+ */
+async function browseDirectories(dirPath) {
+  try {
+    const url = `/api/analyze/browse${dirPath ? `?path=${encodeURIComponent(dirPath)}` : ''}`;
+    const response = await fetch(url, {
+      headers: { 'Accept': 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to browse directory: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    log.error('Error browsing directories:', error);
+    return null;
+  }
+}
+
+/**
+ * Show a directory picker modal.
+ * This demonstrates the ability to browse and select a folder.
+ */
+async function showDirectoryPicker() {
+  // Start from home directory or current path
+  const startPath = elements.projectPath.value || null;
+  const response = await browseDirectories(startPath);
+
+  if (!response) {
+    showError('Failed to open directory browser');
+    return;
+  }
+
+  if (response.error) {
+    showError(`Browser error: ${response.error}`);
+    return;
+  }
+
+  // Create a simple modal for directory selection
+  const modal = createDirectoryBrowserModal(response);
+  document.body.appendChild(modal);
+}
+
+/**
+ * Create a simple directory browser modal.
+ */
+function createDirectoryBrowserModal(dirResponse) {
+  const modal = document.createElement('div');
+  modal.className = 'directory-browser-modal';
+  modal.setAttribute('aria-hidden', 'false');
+  modal.setAttribute('role', 'dialog');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'directory-browser-overlay';
+  overlay.addEventListener('click', () => modal.remove());
+
+  const content = document.createElement('div');
+  content.className = 'directory-browser-content';
+
+  const header = document.createElement('div');
+  header.className = 'directory-browser-header';
+  header.innerHTML = `
+    <h2>Browse Folders</h2>
+    <button type="button" aria-label="Close" class="close-btn">&times;</button>
+  `;
+  header.querySelector('.close-btn').addEventListener('click', () => modal.remove());
+
+  const pathDisplay = document.createElement('div');
+  pathDisplay.className = 'directory-browser-path';
+  pathDisplay.textContent = `Current: ${dirResponse.currentPath}`;
+
+  const list = document.createElement('div');
+  list.className = 'directory-browser-list';
+
+  dirResponse.entries.forEach(entry => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'directory-browser-item';
+    item.innerHTML = `<span class="icon">${entry.name === '..' ? '⬆' : '📁'}</span> ${entry.name}`;
+    item.addEventListener('click', async () => {
+      if (entry.name === '..' || entry.isDirectory) {
+        // Navigate into folder
+        const nextResponse = await browseDirectories(entry.path);
+        if (nextResponse) {
+          modal.replaceWith(createDirectoryBrowserModal(nextResponse));
+        }
+      }
+    });
+    list.appendChild(item);
+  });
+
+  const footer = document.createElement('div');
+  footer.className = 'directory-browser-footer';
+  const selectBtn = document.createElement('button');
+  selectBtn.type = 'button';
+  selectBtn.className = 'directory-browser-select-btn';
+  selectBtn.textContent = 'Select this folder';
+  selectBtn.addEventListener('click', () => {
+    elements.projectPath.value = dirResponse.currentPath;
+    window.localStorage.setItem('code-city.projectPath', dirResponse.currentPath);
+    modal.remove();
+  });
+  footer.appendChild(selectBtn);
+
+  content.appendChild(header);
+  content.appendChild(pathDisplay);
+  content.appendChild(list);
+  content.appendChild(footer);
+
+  modal.appendChild(overlay);
+  modal.appendChild(content);
+
+  return modal;
+}
+
+elements.folderPickerBtn.addEventListener('click', (event) => {
+  event.preventDefault();
+  showDirectoryPicker();
+});
 
 function setStatus(message) {
   elements.status.textContent = message;

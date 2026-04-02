@@ -2,6 +2,7 @@ package de.marcelsauer.codecity.api;
 
 import de.marcelsauer.codecity.model.Cityscape;
 import de.marcelsauer.codecity.parser.JavaAnalysisService;
+import de.marcelsauer.codecity.service.DirectoryBrowserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalysisController {
 
     private final JavaAnalysisService analysisService;
+    private final DirectoryBrowserService directoryBrowserService;
 
     @PostMapping
     public ResponseEntity<Cityscape> analyze(@Valid @RequestBody AnalysisRequest request) throws Exception {
@@ -55,6 +58,12 @@ public class AnalysisController {
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Code City is running");
+    }
+
+    @GetMapping("/browse")
+    public ResponseEntity<DirectoryBrowserResponse> browseDirectory(@RequestParam(required = false) String path) {
+        DirectoryBrowserResponse response = directoryBrowserService.browseDirectory(path);
+        return ResponseEntity.ok(response);
     }
 }
 

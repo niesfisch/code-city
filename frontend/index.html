@@ -34,7 +34,10 @@
         <form id="analysis-form" class="panel stack-lg">
           <label class="stack-sm">
             <span>Project directory</span>
-            <input id="projectPath" name="projectPath" type="text" placeholder="/path/to/project" required />
+            <div class="path-input-row">
+              <input id="projectPath" name="projectPath" type="text" placeholder="/path/to/project" required />
+              <button id="folderPickerBtn" type="button" class="secondary path-picker-btn" title="Browse for folder">Browse</button>
+            </div>
           </label>
 
           <label class="stack-sm">
