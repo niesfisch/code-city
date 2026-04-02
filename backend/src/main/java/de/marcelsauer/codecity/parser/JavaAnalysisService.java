@@ -451,6 +451,7 @@ public class JavaAnalysisService {
                 .name(typeName)
                 .fullName("(default)".equals(packageName) ? typeName : packageName + "." + typeName)
                 .packageName(packageName)
+                .sourceFileName(sourceFile != null ? sourceFile.getFileName().toString() : null)
                 .type(type)
                 .metrics(metrics)
                 .color(type.getDefaultColor())
@@ -741,7 +742,6 @@ public class JavaAnalysisService {
             int noa = b.getMetrics().getFieldCount();
             int loc = b.getMetrics().getLinesOfCode();
             double cyclomatic = b.getMetrics().getCyclomatic();
-            double avgCyclo = nom > 0 ? cyclomatic / nom : cyclomatic;
 
             // Wettel CodeCity canonical encoding:
             //   Height → NOM   Width → NOA   Depth → LOC (sqrt-scaled)
@@ -749,7 +749,7 @@ public class JavaAnalysisService {
             double w = Math.max(1.2, Math.min(3.5,  1.0 + noa * 0.35));
             double d = Math.max(1.2, Math.min(3.5,  1.0 + Math.sqrt(Math.max(1.0, loc)) * 0.16));
 
-            b.setColor(cyclomaticHeatColor(b.getType(), avgCyclo));
+            b.setColor(cyclomaticHeatColor(b.getType(), cyclomatic));
             b.setDimensions(Dimensions.builder().width(w).height(h).depth(d).build());
             b.setPosition(Position.builder()
                     .x(originX + col * BUILDING_SPACING)
@@ -808,29 +808,34 @@ public class JavaAnalysisService {
     }
 
     /**
-     * Blends the type's base color toward orange-red as average cyclomatic
-     * complexity per method rises.  A value of 1 leaves the color unchanged;
-     * a value of ~8 saturates toward the hot color (#FF6B35).
+     * Maps total cyclomatic complexity to a high-contrast,
+     * colorblind-friendly heat palette (viridis-like):
+     * low -> deep violet, medium -> blue/teal/green, high -> yellow.
      *
-     * This lets the cityscape function simultaneously as a heat map: glowing
-     * orange buildings are structural hotspots regardless of type.
+     * <p>Uses log scaling so extreme outliers do not flatten the rest.
      */
-    private String cyclomaticHeatColor(BuildingType type, double avgCyclomaticPerMethod) {
-        String baseHex = type.getDefaultColor();
-        int rgb = Integer.parseInt(baseHex.substring(1), 16);
-        int baseR = (rgb >> 16) & 0xFF;
-        int baseG = (rgb >> 8) & 0xFF;
-        int baseB = rgb & 0xFF;
+    private String cyclomaticHeatColor(BuildingType type, double cyclomaticTotal) {
+        // Map total cyclomatic to [0..1] with a log curve (around 80+ ~= hot).
+        double safeCyclo = Math.max(0.0, cyclomaticTotal);
+        double heat = Math.min(1.0, Math.log1p(safeCyclo) / Math.log1p(80.0));
 
-        // Target hot color: #FF6B35
-        int hotR = 0xFF, hotG = 0x6B, hotB = 0x35;
+        // Viridis-like stops for perceptual uniformity.
+        int[][] stops = new int[][]{
+                {0x44, 0x01, 0x54}, // #440154  (very low)
+                {0x3B, 0x52, 0x8B}, // #3B528B
+                {0x21, 0x91, 0x8C}, // #21918C
+                {0x5E, 0xC9, 0x62}, // #5EC962
+                {0xFD, 0xE7, 0x25}  // #FDE725  (very high)
+        };
 
-        // heat = 0 when cyclo ≤ 1 (pure sequential), = 1 when cyclo ≥ 8
-        double heat = Math.min(1.0, Math.max(0.0, (avgCyclomaticPerMethod - 1.0) / 7.0));
+        double scaled = heat * (stops.length - 1);
+        int idx = (int) Math.floor(scaled);
+        int next = Math.min(stops.length - 1, idx + 1);
+        double t = scaled - idx;
 
-        int r = (int) Math.round(baseR + (hotR - baseR) * heat);
-        int g = (int) Math.round(baseG + (hotG - baseG) * heat);
-        int b = (int) Math.round(baseB + (hotB - baseB) * heat);
+        int r = (int) Math.round(stops[idx][0] + (stops[next][0] - stops[idx][0]) * t);
+        int g = (int) Math.round(stops[idx][1] + (stops[next][1] - stops[idx][1]) * t);
+        int b = (int) Math.round(stops[idx][2] + (stops[next][2] - stops[idx][2]) * t);
 
         return String.format("#%02X%02X%02X", r, g, b);
     }
@@ -840,6 +845,7 @@ public class JavaAnalysisService {
                 .name(source.getName())
                 .fullName(source.getFullName())
                 .packageName(source.getPackageName())
+                .sourceFileName(source.getSourceFileName())
                 .type(source.getType())
                 .metrics(source.getMetrics())
                 .color(source.getColor())

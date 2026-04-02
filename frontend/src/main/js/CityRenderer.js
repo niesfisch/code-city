@@ -34,6 +34,10 @@ class CityRenderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
+
+    // Allow the canvas to receive keyboard focus for navigation shortcuts.
+    this.renderer.domElement.tabIndex = 0;
+    this.renderer.domElement.setAttribute('aria-label', '3D city viewport');
   }
 
   initializeScene() {
@@ -76,6 +80,19 @@ class CityRenderer {
     this.renderer.domElement.addEventListener('click', event => {
       this.updatePointer(event);
       this.updateHoverSelection(true);
+    });
+
+    this.renderer.domElement.addEventListener('dblclick', event => {
+      this.updatePointer(event);
+      this.focusPickedMesh();
+    });
+
+    this.renderer.domElement.addEventListener('pointerdown', () => {
+      this.renderer.domElement.focus();
+    });
+
+    this.renderer.domElement.addEventListener('keydown', event => {
+      this.handleKeyboardNavigation(event);
     });
   }
 
@@ -303,6 +320,7 @@ class CityRenderer {
       name: building.name,
       fullName: building.fullName,
       packageName: building.packageName,
+      fileName: building.sourceFileName,
       type: building.type,
       methods: building.metrics.methodCount,
       fields: building.metrics.fieldCount,
@@ -607,6 +625,91 @@ class CityRenderer {
       mesh.material.emissive.setHex(mesh.userData.originalEmissiveHex);
       mesh.material.needsUpdate = true;
     }
+  }
+
+  handleKeyboardNavigation(event) {
+    if (!this.controls) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+    const panStep = event.shiftKey ? 4 : 2;
+    const rotateStep = THREE.MathUtils.degToRad(6);
+    let handled = true;
+
+    switch (key) {
+      case 'arrowup':
+      case 'w':
+        this.panBy(0, -panStep);
+        break;
+      case 'arrowdown':
+      case 's':
+        this.panBy(0, panStep);
+        break;
+      case 'arrowleft':
+      case 'a':
+        this.panBy(-panStep, 0);
+        break;
+      case 'arrowright':
+      case 'd':
+        this.panBy(panStep, 0);
+        break;
+      case 'q':
+        this.controls.rotateLeft(rotateStep);
+        break;
+      case 'e':
+        this.controls.rotateLeft(-rotateStep);
+        break;
+      case '+':
+      case '=':
+        this.zoomByFactor(0.9);
+        break;
+      case '-':
+      case '_':
+        this.zoomByFactor(1.1);
+        break;
+      case 'r':
+      case '0':
+        this.resetCamera();
+        break;
+      case 'f':
+        this.focusCity();
+        break;
+      default:
+        handled = false;
+    }
+
+    if (!handled) {
+      return;
+    }
+
+    event.preventDefault();
+    this.controls.update();
+  }
+
+  panBy(dx, dz) {
+    const delta = new THREE.Vector3(dx, 0, dz);
+    this.camera.position.add(delta);
+    this.controls.target.add(delta);
+  }
+
+  zoomByFactor(factor) {
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const currentDistance = offset.length();
+    const nextDistance = THREE.MathUtils.clamp(currentDistance * factor, 8, 1200);
+    offset.setLength(nextDistance);
+    this.camera.position.copy(this.controls.target.clone().add(offset));
+  }
+
+  focusPickedMesh() {
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const hit = this.raycaster.intersectObjects(this.pickableMeshes, false)[0];
+    const hitMesh = hit?.object ?? null;
+    if (!hitMesh) {
+      return;
+    }
+
+    this.selectMesh(hitMesh, { focusCamera: true });
   }
 
 }

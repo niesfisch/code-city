@@ -75,7 +75,13 @@ body {
 /* prevent the right-column panels from growing past their grid cell */
 .viewer-layout > .stack-md {
   min-width: 0;
-  overflow: hidden;
+  position: sticky;
+  top: 20px;
+  align-self: start;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
 }
 
 .details-panel {
@@ -128,6 +134,43 @@ h1 {
   margin: 8px 0 12px;
   font-size: 2rem;
   line-height: 1.1;
+}
+
+.sidebar-header {
+  position: relative;
+}
+
+.brand-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.github-link {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  cursor: pointer;
+}
+
+.github-link:hover {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #cbd5e1;
+}
+
+.github-icon {
+  width: 20px;
+  height: 20px;
 }
 
 p,
@@ -258,13 +301,13 @@ button:hover {
   font-size: 0.76rem;
 }
 
-/* gradient swatch: type-blue → orange-red (matches the actual heat formula) */
+/* gradient swatch for complexity heat (viridis-like) */
 .heat-bar {
   display: block;
   width: 100%;
   height: 10px;
   border-radius: 4px;
-  background: linear-gradient(to right, #4A90E2, #FF6B35);
+  background: linear-gradient(to right, #440154, #3B528B, #21918C, #5EC962, #FDE725);
   margin-top: 3px;
 }
 
@@ -693,6 +736,39 @@ button:hover {
   font-size: 0.8rem;
 }
 
+.controls-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.controls-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 6px;
+  background: rgba(30, 41, 59, 0.9);
+  color: #e2e8f0;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 @media (max-width: 1200px) {
   #app,
   .viewer-layout {
@@ -701,6 +777,14 @@ button:hover {
 
   .viewer {
     min-height: 520px;
+  }
+
+  .viewer-layout > .stack-md {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
   }
 }
 
@@ -842,5 +926,4 @@ button:hover {
   font-size: 0.78rem;
   color: #475569;
 }
-
 

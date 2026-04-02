@@ -36,7 +36,8 @@ class AnalysisControllerTest {
                                 """.formatted(projectPath.replace("\\", "\\\\"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.metrics.totalPackages", is(2)))
-                .andExpect(jsonPath("$.buildings.length()", is(6)));
+                .andExpect(jsonPath("$.buildings.length()", is(6)))
+                .andExpect(jsonPath("$.buildings[0].sourceFileName").isNotEmpty());
     }
 
     @Test
@@ -61,4 +62,3 @@ class AnalysisControllerTest {
                 .andExpect(jsonPath("$.message", containsString("does not exist")));
     }
 }
-

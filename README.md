@@ -10,6 +10,17 @@ Code City turns a Java or Kotlin project into a 3D cityscape.
 
 Packages become plateaus. Classes, interfaces, enums, records, and abstract classes (Java) or classes, interfaces, objects, and data classes (Kotlin) become buildings. The more code and branching a type has, the taller the building gets. The goal is not perfect static analysis theology; the goal is a fast visual feel for structure and complexity.
 
+## Inspiration and Credit
+
+Huge props to **Richard Wettel** for the original software-city metaphor and the foundational research that inspired this tool.
+
+- Website: https://wettel.github.io/
+- Papers:
+  - *Software Systems as Cities* (ICSE Doctoral Symposium, 2009): https://wettel.github.io/download/Wettel09a-icse-doctoral.pdf
+  - Publication context and related work are referenced in `README_metrics.md`
+
+As far as we can tell, the original CodeCity project is not actively maintained anymore, but it is still extremely useful inspiration for modern tooling.
+
 ### Example cityscapes
 
 Multiple Java and/or Kotlin projects at the top level create distinct base plateaus stacked as nested districts:
@@ -33,12 +44,13 @@ Multiple Java and/or Kotlin projects at the top level create distinct base plate
 ## How the city mapping works
 
 - Package -> plateau
-- Class/interface/enum/record/abstract class (Java) -> building (blue family colors)
-- Class/interface/object/data class (Kotlin) -> building (teal family colors)
+- Class/interface/enum/record/abstract class (Java) -> building
+- Class/interface/object/data class (Kotlin) -> building
 - Height -> NOM (number of methods)
 - Width -> NOA (number of attributes/fields)
 - Depth -> LOC (lines of code)
-- Type hue + cyclomatic heat -> building color
+- Building color -> total cyclomatic heat palette (violet low -> yellow high, log-scaled)
+- Type distinction -> legend filters + selection details
 
 ## Search & Navigation
 
@@ -55,6 +67,23 @@ Use the **Metric Filter** panel to highlight likely refactoring candidates by th
 - Or build your own filter with a metric, an operator, and a threshold value
 - Matching buildings are highlighted and listed, sorted by the strongest offenders first
 - Click a result to focus that building and inspect its metrics in the selection panel
+
+### 3D viewport controls
+
+Mouse:
+
+- Left drag: rotate camera
+- Right drag: pan view
+- Mouse wheel: zoom in/out
+- Double click: focus clicked plateau/building
+
+Keyboard (click inside the 3D map first):
+
+- `W A S D` or arrow keys: pan
+- `Q` / `E`: rotate left/right
+- `+` / `-`: zoom in/out
+- `F`: focus whole city
+- `R` or `0`: reset camera
 
 This is useful for quickly navigating large codebases or investigating a specific type's complexity and structure.
 

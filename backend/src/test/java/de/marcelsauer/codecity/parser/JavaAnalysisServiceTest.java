@@ -31,6 +31,10 @@ class JavaAnalysisServiceTest {
         assertThat(cityscape.getBuildings())
                 .extracting(Building::getType)
                 .contains(BuildingType.CLASS, BuildingType.INTERFACE, BuildingType.ENUM, BuildingType.RECORD, BuildingType.ABSTRACT);
+        assertThat(cityscape.getBuildings())
+                .extracting(Building::getSourceFileName)
+                .allSatisfy(file -> assertThat(file).isNotBlank())
+                .anySatisfy(file -> assertThat(file).endsWith(".java"));
     }
 
     @Test
@@ -65,4 +69,3 @@ class JavaAnalysisServiceTest {
         assertThat(JavaAnalysisService.isTestFile(base, base.resolve("FooRepository.java"))).isFalse();
     }
 }
-
