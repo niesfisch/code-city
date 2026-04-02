@@ -31,7 +31,7 @@ Multiple Java and/or Kotlin projects at the top level create distinct base plate
 
 ![Code City visualization example 3](doc/city3.png)
 
-<img src="doc/left1.png" alt="Menu" width="150" /> <img src="doc/left2.png" alt="Menu" width="150" /> <img src="doc/left3.png" alt="Menu" width="150" /> <img src="doc/left4.png" alt="Menu" width="150" /> 
+<img src="doc/left5.png" alt="Menu" width="150" /> <img src="doc/left2.png" alt="Menu" width="150" /> <img src="doc/left3.png" alt="Menu" width="150" /> <img src="doc/left4.png" alt="Menu" width="150" /> 
 
 ## What it does
 
