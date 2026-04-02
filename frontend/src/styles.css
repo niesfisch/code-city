@@ -18,6 +18,7 @@ body,
 
 body {
   min-height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 35%),
     linear-gradient(180deg, #08111f 0%, #050914 100%);
@@ -26,7 +27,8 @@ body {
 #app {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar,
@@ -38,6 +40,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   border-right: 1px solid rgba(148, 163, 184, 0.15);
   background: rgba(8, 17, 31, 0.72);
   backdrop-filter: blur(18px);
@@ -47,6 +54,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  overflow: hidden;
   position: relative;
 }
 
@@ -770,9 +779,31 @@ kbd {
 }
 
 @media (max-width: 1200px) {
+  body {
+    overflow: auto;
+  }
+
   #app,
   .viewer-layout {
     grid-template-columns: 1fr;
+  }
+
+  #app {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .sidebar {
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
+  }
+
+  .viewer-shell {
+    min-height: auto;
+    overflow: visible;
   }
 
   .viewer {
