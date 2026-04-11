@@ -1,5 +1,6 @@
 import './styles.css';
 import CityRenderer from './main/js/CityRenderer.js';
+import { getRandomQuip } from './main/js/codeSmellQuips.js';
 
 const elements = {
   form: document.getElementById('analysis-form'),
@@ -10,15 +11,25 @@ const elements = {
   excludeTests: document.getElementById('excludeTests'),
   analyzeButton: document.getElementById('analyzeButton'),
   resetButton: document.getElementById('resetButton'),
+  flythroughButton: document.getElementById('flythroughButton'),
+  tourSpeedSelect: document.getElementById('tourSpeedSelect'),
   status: document.getElementById('status'),
   summary: document.getElementById('summary'),
   metrics: document.getElementById('metrics'),
   selection: document.getElementById('selection'),
   metricTooltip: document.getElementById('metricTooltip'),
+  viewerTooltip: document.getElementById('viewerTooltip'),
+  legendSectionTitle: document.getElementById('legendSectionTitle'),
+  legendSectionHint: document.getElementById('legendSectionHint'),
+  legendEmptyState: document.getElementById('legendEmptyState'),
   searchInput: document.getElementById('searchInput'),
   searchClearButton: document.getElementById('searchClearButton'),
   searchResults: document.getElementById('searchResults'),
   error: document.getElementById('error'),
+  funModeToggle: document.getElementById('funModeToggle'),
+  packageDependencyToggle: document.getElementById('packageDependencyToggle'),
+  buildingDependencyToggle: document.getElementById('buildingDependencyToggle'),
+  dependencyOverlayStats: document.getElementById('dependencyOverlayStats'),
   // metric filter
   quickFilterChips: document.getElementById('quickFilterChips'),
   filterMetric: document.getElementById('filterMetric'),
@@ -31,11 +42,65 @@ const elements = {
   filterResultList: document.getElementById('filterResultList'),
   analysisOverlay: document.getElementById('analysisOverlay'),
   analysisOverlayMessage: document.getElementById('analysisOverlayMessage'),
+  tourPopup: document.getElementById('tourPopup'),
   apiUnavailableOverlay: document.getElementById('apiUnavailableOverlay'),
   apiUnavailableMessage: document.getElementById('apiUnavailableMessage'),
   apiUnavailableCloseButton: document.getElementById('apiUnavailableCloseButton'),
   apiUnavailableRetryButton: document.getElementById('apiUnavailableRetryButton')
 };
+
+// ── Theme Management ─────────────────────────────────────────────────────────
+
+const AVAILABLE_THEMES = [
+  { id: 'dark', label: 'Dark' },
+  { id: 'midnight', label: 'Midnight' },
+  { id: 'twilight', label: 'Twilight' },
+  { id: 'forest', label: 'Forest' },
+  { id: 'neon', label: 'Neon' }
+];
+
+function initializeTheme() {
+  const savedTheme = window.localStorage.getItem('code-city.theme');
+  const theme = savedTheme || 'dark';
+  applyTheme(theme);
+}
+
+function applyTheme(themeName) {
+  if (themeName === 'dark') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', themeName);
+  }
+
+  window.localStorage.setItem('code-city.theme', themeName);
+  updateThemeButtons(themeName);
+}
+
+function updateThemeButtons(activeName) {
+  const buttons = document.querySelectorAll('.theme-btn');
+  buttons.forEach(btn => {
+    const btnTheme = btn.getAttribute('data-theme');
+    const isActive = btnTheme === activeName;
+    btn.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+function setupThemeHandlers() {
+  const buttons = document.querySelectorAll('.theme-btn');
+  if (buttons.length === 0) {
+    console.warn('Theme buttons not found in DOM');
+    return;
+  }
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const themeName = btn.getAttribute('data-theme');
+      if (themeName) {
+        applyTheme(themeName);
+      }
+    });
+  });
+}
 
 const METRIC_EXPLANATIONS = {
   methods: 'Number of methods (NOM) declared by the selected type.',
@@ -109,10 +174,10 @@ const QUICK_FILTERS = [
   },
   {
     id: 'complexity-10-plus',
-    label: 'Complexity > 10',
-    tooltip: 'Composite complexity score above 10 \u2014 likely gnarly',
+    label: 'Complexity Score > 10',
+    tooltip: 'Composite complexity score above 10 — likely gnarly',
     displayKey: 'complexity',
-    displayLabel: 'score',
+    displayLabel: 'complexity score',
     predicate: m => m.complexity > 10
   },
   {
@@ -125,10 +190,10 @@ const QUICK_FILTERS = [
   },
   {
     id: 'high-score',
-    label: 'Score > 8',
-    tooltip: 'Composite complexity score > 8 \u2014 investigate this type',
+    label: 'Complexity Score > 8',
+    tooltip: 'Composite complexity score > 8 — investigate this type',
     displayKey: 'complexity',
-    displayLabel: 'score',
+    displayLabel: 'complexity score',
     predicate: m => m.complexity > 8
   },
   {
@@ -187,16 +252,34 @@ const FILTER_OPS = [
 ];
 
 const renderer = new CityRenderer('viewer', {
-  onSelectionChange: renderSelection
+  onSelectionChange: renderSelection,
+  onHoverChange: renderViewerTooltip,
+  onTourStateChange: handleTourStateChange,
+  onTourBuildingFocus: handleTourBuildingFocus,
+  onDependencyOverlayChange: renderDependencyOverlayStats
 });
 
 let activeQuickFilter = null;
 let apiUnavailableDismissed = false;
+let funModeEnabled = true;
+let lastHoveredMesh = null;
+let cachedQuip = null;
 
 // Legend highlight filter
-const legendItems = document.querySelectorAll('[data-highlight-type]');
+const legendItems = Array.from(document.querySelectorAll('[data-highlight-type]'));
+const legendTypeEntries = legendItems.map(item => ({
+  item,
+  typeKey: item.getAttribute('data-highlight-type'),
+  labelElement: item.querySelector('.legend-label'),
+  baseLabel: item.querySelector('.legend-label')?.textContent?.trim() ?? item.textContent.trim()
+}));
+
 legendItems.forEach(item => {
   item.addEventListener('click', () => {
+    if (item.hidden) {
+      return;
+    }
+
     const typeKey = item.getAttribute('data-highlight-type');
     // legend filter is mutually exclusive with metric filter and name search
     clearMetricFilter();
@@ -208,13 +291,123 @@ legendItems.forEach(item => {
     if (willBeActive) {
       item.classList.add('active');
     }
+    updateFlythroughButton();
   });
 });
+
+function updateLegendFilters(cityscape) {
+  const typeCounts = new Map();
+
+  for (const building of cityscape?.buildings ?? []) {
+    const typeKey = building?.type;
+    if (!typeKey) {
+      continue;
+    }
+    typeCounts.set(typeKey, (typeCounts.get(typeKey) ?? 0) + 1);
+  }
+
+  let visibleCount = 0;
+  let activeTypeStillVisible = false;
+
+  for (const entry of legendTypeEntries) {
+    const count = typeCounts.get(entry.typeKey) ?? 0;
+    const isVisible = count > 0;
+    entry.item.hidden = !isVisible;
+    entry.item.classList.toggle('active', isVisible && renderer.activeHighlight === entry.typeKey);
+
+    if (entry.labelElement) {
+      entry.labelElement.textContent = isVisible
+        ? `${entry.baseLabel} (${count})`
+        : entry.baseLabel;
+    }
+
+    if (isVisible) {
+      visibleCount += 1;
+      if (renderer.activeHighlight === entry.typeKey) {
+        activeTypeStillVisible = true;
+      }
+    }
+  }
+
+  if (!activeTypeStillVisible && renderer.activeHighlight) {
+    clearLegendFilter();
+  }
+
+  if (visibleCount > 0) {
+    if (elements.legendSectionTitle) {
+      elements.legendSectionTitle.textContent = 'Type filters';
+    }
+    if (elements.legendSectionHint) {
+      elements.legendSectionHint.textContent = 'Filter visible building types. Building colors show complexity heat.';
+    }
+  } else {
+    if (elements.legendSectionTitle) {
+      elements.legendSectionTitle.textContent = 'Type filters';
+    }
+    if (elements.legendSectionHint) {
+      elements.legendSectionHint.textContent = 'Analyze a project to populate the building-type filters. Building colors show complexity heat.';
+    }
+  }
+
+  elements.legendEmptyState?.classList.toggle('hidden', visibleCount > 0);
+}
 
 const savedPath = window.localStorage.getItem('code-city.projectPath');
 if (savedPath) {
   elements.projectPath.value = savedPath;
 }
+
+const savedFunMode = window.localStorage.getItem('code-city.funMode');
+if (savedFunMode !== null) {
+  funModeEnabled = savedFunMode === 'true';
+  elements.funModeToggle.checked = funModeEnabled;
+}
+
+const savedPackageDeps = window.localStorage.getItem('code-city.dependencyOverlay.packages');
+if (savedPackageDeps !== null && elements.packageDependencyToggle) {
+  elements.packageDependencyToggle.checked = savedPackageDeps === 'true';
+}
+const savedBuildingDeps = window.localStorage.getItem('code-city.dependencyOverlay.buildings');
+if (savedBuildingDeps !== null && elements.buildingDependencyToggle) {
+  elements.buildingDependencyToggle.checked = savedBuildingDeps === 'true';
+}
+
+function applyDependencyOverlaySettings() {
+  const showPackageEdges = elements.packageDependencyToggle?.checked !== false;
+  const showTypeEdges = elements.buildingDependencyToggle?.checked !== false;
+  const enabled = showPackageEdges || showTypeEdges;
+
+  renderer.setDependencyOverlayOptions({
+    enabled,
+    showPackageEdges,
+    showTypeEdges
+  });
+}
+
+function renderDependencyOverlayStats(state) {
+  if (!elements.dependencyOverlayStats) {
+    return;
+  }
+
+  if (!state?.enabled) {
+    elements.dependencyOverlayStats.textContent = 'All arches disabled';
+    return;
+  }
+
+  const pkgText = state.showPackageEdges
+    ? `Pkg arches: ${state.renderedPackageArches}`
+    : 'Pkg arches: off';
+  const bldText = state.showTypeEdges
+    ? `Bld arches: ${state.renderedTypeArches}`
+    : 'Bld arches: off';
+  const hint = state.showTypeEdges && state.renderedTypeArches === 0
+    ? ' (select a building for local streets)'
+    : '';
+
+  elements.dependencyOverlayStats.textContent = `${pkgText} | ${bldText}${hint}`;
+}
+
+applyDependencyOverlaySettings();
 
 // ── Directory Browser ───────────────────────────────────────────────────────
 
@@ -344,6 +537,60 @@ function setStatus(message) {
   elements.status.textContent = message;
 }
 
+function hasRenderedCity() {
+  return (renderer.pickableMeshes?.length ?? 0) > 0;
+}
+
+function updateFlythroughButton() {
+  const button = elements.flythroughButton;
+  if (!button) {
+    return;
+  }
+
+  const isRunning = renderer.isTourRunning === true;
+  const isBusy = elements.form?.getAttribute('aria-busy') === 'true';
+
+  if (isRunning) {
+    button.textContent = 'Stop tour';
+    button.classList.add('active');
+  } else {
+    const filterCount = renderer.getFilteredTourCandidateCount?.() ?? null;
+    if (filterCount !== null) {
+      button.textContent = `Tour matching (${filterCount})`;
+    } else {
+      button.textContent = 'Fly through';
+    }
+    button.classList.remove('active');
+  }
+
+  if (elements.tourSpeedSelect) {
+    elements.tourSpeedSelect.disabled = isBusy || isRunning;
+  }
+
+  if (isBusy) {
+    button.disabled = true;
+    return;
+  }
+
+  button.disabled = !isRunning && !hasRenderedCity();
+}
+
+function handleTourStateChange(isRunning) {
+  updateFlythroughButton();
+
+  if (elements.form?.getAttribute('aria-busy') === 'true') {
+    return;
+  }
+
+  if (isRunning) {
+    setStatus('Touring...');
+  } else if (hasRenderedCity()) {
+    setStatus('Ready');
+  } else {
+    setStatus('Idle');
+  }
+}
+
 function showError(message) {
   elements.error.textContent = message;
   elements.error.classList.remove('hidden');
@@ -437,6 +684,8 @@ function setBusyState(isBusy, message = 'Parsing sources, collecting metrics, an
     elements.excludeTests,
     elements.analyzeButton,
     elements.resetButton,
+    elements.flythroughButton,
+    elements.tourSpeedSelect,
     elements.searchInput,
     elements.searchClearButton,
     elements.filterMetric,
@@ -455,31 +704,136 @@ function setBusyState(isBusy, message = 'Parsing sources, collecting metrics, an
   document.querySelectorAll('.filter-chip').forEach(chip => {
     chip.disabled = isBusy;
   });
+
+  updateFlythroughButton();
 }
 
 function renderSelection(selection) {
-  hideMetricTooltip();
+   hideMetricTooltip();
 
-  if (!selection) {
-    elements.selection.innerHTML = '<div class="muted">Hover or click a plateau or building.</div>';
-    return;
-  }
+   if (!selection) {
+     elements.selection.innerHTML = '<div class="muted">Hover or click a plateau or building.</div>';
+     return;
+   }
 
-  const rows = Object.entries(selection)
-    .filter(([, value]) => value !== null && value !== undefined && value !== '')
-    .map(([key, value]) => {
-      const metricAttr = METRIC_EXPLANATIONS[key] ? `data-metric-key="${key}"` : '';
-      return `
-      <div class="definition-row">
-        <span class="metric-label" ${metricAttr}>${formatKey(key)}</span>
-        <span>${formatValue(value)}</span>
-      </div>
-    `;
-    })
-    .join('');
+   const rows = Object.entries(selection)
+     .filter(([, value]) => value !== null && value !== undefined && value !== '')
+     .map(([key, value]) => {
+       const metricAttr = METRIC_EXPLANATIONS[key] ? `data-metric-key="${key}"` : '';
+       return `
+       <div class="definition-row">
+         <span class="metric-label" ${metricAttr}>${formatKey(key)}</span>
+         <span>${formatValue(value)}</span>
+       </div>
+     `;
+     })
+     .join('');
 
-  elements.selection.innerHTML = `<div class="definition-list">${rows}</div>`;
-}
+   // Add "Open file" button if building has a source file
+   const sourceFileName = selection.sourceFileName || selection.fileName;
+   const hasSource = sourceFileName && selection.fullName;
+   const openFileBtn = hasSource
+     ? `<button type="button" class="open-file-btn" data-full-name="${selection.fullName}" data-source-file="${sourceFileName}" title="View source code in popup">Open file</button>`
+     : '';
+
+   elements.selection.innerHTML = `<div class="definition-list">${rows}</div>${openFileBtn}`;
+
+   // Attach click handler to open file button
+   if (hasSource) {
+     const btn = elements.selection.querySelector('.open-file-btn');
+     if (btn) {
+       btn.addEventListener('click', () => {
+         openSourceFilePopup(selection);
+       });
+     }
+   }
+ }
+
+ async function openSourceFilePopup(selection) {
+   const projectPath = elements.projectPath.value;
+   if (!projectPath) {
+     showError('No project path set. Analyze a project first.');
+     return;
+   }
+
+   const params = new URLSearchParams({
+     projectPath,
+      sourceFileName: selection.sourceFileName || selection.fileName,
+     fullName: selection.fullName,
+     packageName: selection.packageName || '',
+     name: selection.name
+   });
+
+   try {
+     const response = await fetch(`/api/analyze/source?${params}`);
+     if (!response.ok) {
+       showError(`Failed to load source: ${response.statusText}`);
+       return;
+     }
+
+     const sourceData = await response.json();
+     showSourceFileModal(sourceData);
+   } catch (error) {
+     showError(`Error fetching source file: ${error.message}`);
+   }
+ }
+
+ function showSourceFileModal(sourceData) {
+   const modal = document.createElement('div');
+   modal.className = 'source-file-modal';
+   modal.setAttribute('role', 'dialog');
+   modal.setAttribute('aria-modal', 'true');
+
+   const overlay = document.createElement('div');
+   overlay.className = 'source-file-overlay';
+   overlay.addEventListener('click', () => modal.remove());
+
+   const content = document.createElement('div');
+   content.className = 'source-file-content';
+
+   const header = document.createElement('div');
+   header.className = 'source-file-header';
+   const title = document.createElement('div');
+   title.className = 'source-file-title';
+   title.innerHTML = `<strong>${sourceData.name}</strong> <span class="muted">${sourceData.sourceFileName}</span>`;
+
+   const headerMeta = document.createElement('div');
+   headerMeta.className = 'source-file-meta';
+   headerMeta.textContent = sourceData.fullName;
+
+   const closeBtn = document.createElement('button');
+   closeBtn.type = 'button';
+   closeBtn.className = 'source-file-close-btn';
+   closeBtn.setAttribute('aria-label', 'Close');
+   closeBtn.textContent = '×';
+   closeBtn.addEventListener('click', () => modal.remove());
+
+   header.appendChild(title);
+   header.appendChild(headerMeta);
+   header.appendChild(closeBtn);
+
+   const codeContainer = document.createElement('div');
+   codeContainer.className = 'source-file-code-container';
+
+   const preTag = document.createElement('pre');
+   const codeTag = document.createElement('code');
+   codeTag.className = `language-${sourceData.language}`;
+   codeTag.textContent = sourceData.content;
+   preTag.appendChild(codeTag);
+   codeContainer.appendChild(preTag);
+
+   content.appendChild(header);
+   content.appendChild(codeContainer);
+
+   modal.appendChild(overlay);
+   modal.appendChild(content);
+   document.body.appendChild(modal);
+
+   // If Prism (syntax highlighter) is available, highlight the code
+   if (window.Prism && window.Prism.highlightElement) {
+     window.Prism.highlightElement(codeTag);
+   }
+ }
 
 function showMetricTooltip(anchorElement, text) {
   const tooltip = elements.metricTooltip;
@@ -512,6 +866,130 @@ function hideMetricTooltip() {
     return;
   }
   tooltip.classList.add('hidden');
+}
+
+function renderViewerTooltip(hoverState) {
+  const tooltip = elements.viewerTooltip;
+  if (!tooltip) {
+    return;
+  }
+
+  if (!hoverState?.data) {
+    tooltip.classList.add('hidden');
+    tooltip.innerHTML = '';
+    lastHoveredMesh = null;
+    cachedQuip = null;
+    return;
+  }
+
+  const { data, point, isArch } = hoverState;
+
+  // Handle arch hovers
+  if (isArch && data) {
+    const { sourceName, targetName, weight, type } = data;
+    const typeLabel = type === 'package-dependency' ? 'Package Dependency' :
+                      type === 'imports' ? 'Imports' :
+                      type === 'imported-by' ? 'Imported By' : 'Dependency';
+
+    const html = `
+      <div class="viewer-tooltip__row">
+        <span class="viewer-tooltip__label">From</span>
+        <span class="viewer-tooltip__value">${sourceName}</span>
+      </div>
+      <div class="viewer-tooltip__row">
+        <span class="viewer-tooltip__label">To</span>
+        <span class="viewer-tooltip__value">${targetName}</span>
+      </div>
+      <div class="viewer-tooltip__row">
+        <span class="viewer-tooltip__label">Type</span>
+        <span class="viewer-tooltip__value">${typeLabel}</span>
+      </div>
+      <div class="viewer-tooltip__row">
+        <span class="viewer-tooltip__label">Weight</span>
+        <span class="viewer-tooltip__value">${weight} connection${weight > 1 ? 's' : ''}</span>
+      </div>
+    `;
+
+    tooltip.innerHTML = html;
+    tooltip.classList.remove('hidden');
+    tooltip.style.left = `${point.x}px`;
+    tooltip.style.top = `${point.y + 12}px`;
+    return;
+  }
+
+  // Handle building/plateau hovers
+  const selection = hoverState.selection ?? null;
+  const isPlateau = data?.type === 'Package plateau' || selection?.kind === 'Package plateau';
+  const baseRows = [
+    ['Package', data.packageName ?? '—'],
+    ['Name', data.name ?? '—'],
+    ['Type', data.type ?? '—']
+  ];
+
+  let plateauSummaryRow = '';
+  if (isPlateau && selection) {
+    const buildingCount = selection.buildingCount;
+    const parts = [];
+    if (typeof buildingCount === 'number') {
+      parts.push(`${buildingCount} building${buildingCount === 1 ? '' : 's'}`);
+    }
+    if (parts.length > 0) {
+      plateauSummaryRow = `
+        <div class="viewer-tooltip__row">
+          <span class="viewer-tooltip__label">Summary</span>
+          <span class="viewer-tooltip__value">${parts.join(', ')}</span>
+        </div>
+      `;
+    }
+  }
+
+  // Add fun quip if enabled and we have selection data with metrics
+  let quipRow = '';
+  if (funModeEnabled && selection && !isPlateau) {
+    // Only generate a new quip if we moved to a different mesh
+    const currentMesh = hoverState.mesh;
+    if (currentMesh !== lastHoveredMesh) {
+      lastHoveredMesh = currentMesh;
+      cachedQuip = generateTourQuip(selection);
+    }
+
+    if (cachedQuip) {
+      const { badge, text } = cachedQuip;
+      quipRow = `
+        <div class="viewer-tooltip__row viewer-tooltip__quip">
+          <span class="viewer-tooltip__badge">${badge}</span>
+          <span class="viewer-tooltip__quip-text">${text}</span>
+        </div>
+      `;
+    }
+  }
+
+  tooltip.innerHTML = baseRows.map(([label, value]) => `
+    <div class="viewer-tooltip__row">
+      <span class="viewer-tooltip__label">${label}</span>
+      <span class="viewer-tooltip__value">${value}</span>
+    </div>
+  `).join('') + plateauSummaryRow + quipRow;
+
+  tooltip.classList.remove('hidden');
+
+  const parentRect = tooltip.parentElement.getBoundingClientRect();
+  const tipRect = tooltip.getBoundingClientRect();
+  const x = point?.x ?? 0;
+  const y = point?.y ?? 0;
+
+  let left = x + 14;
+  let top = y + 14;
+
+  if (left + tipRect.width > parentRect.width - 8) {
+    left = Math.max(8, x - tipRect.width - 14);
+  }
+  if (top + tipRect.height > parentRect.height - 8) {
+    top = Math.max(8, y - tipRect.height - 14);
+  }
+
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
 }
 
 function renderSearchResults(results) {
@@ -566,12 +1044,15 @@ function clearSearch() {
 function clearLegendFilter() {
   legendItems.forEach(el => el.classList.remove('active'));
   renderer.clearHighlight();
+  updateFlythroughButton();
 }
 
 function clearAllOverlayFilters() {
   clearSearch();
   clearMetricFilter();
   clearLegendFilter();
+  renderViewerTooltip(null);
+  handleTourBuildingFocus(null);
 }
 
 // ── Metric filter ─────────────────────────────────────────────────────────
@@ -587,6 +1068,7 @@ function applyMetricFilter(predicate, displayKey, displayLabel) {
   const matches = renderer.filterBuildings(predicate);
   renderer.highlightByMetricFilter(matches.map(m => m.mesh));
   renderFilterResults(matches, displayKey, displayLabel);
+  updateFlythroughButton();
 }
 
 /** Clear metric filter UI and renderer state. */
@@ -599,6 +1081,7 @@ function clearMetricFilter() {
   if (elements.filterResultList) {
     elements.filterResultList.innerHTML = '';
   }
+  updateFlythroughButton();
 }
 
 /** Render the metric filter result list. */
@@ -863,7 +1346,10 @@ async function analyzeProject() {
     hideApiUnavailableOverlay({ resetDismissed: true });
     clearAllOverlayFilters();
     renderer.render(cityscape);
+    applyDependencyOverlaySettings();
+    updateLegendFilters(cityscape);
     renderMetrics(cityscape);
+    updateFlythroughButton();
     setStatus('Ready');
   } finally {
     setBusyState(false);
@@ -888,20 +1374,193 @@ elements.form.addEventListener('submit', async event => {
     }
 
     renderer.reset();
+    updateLegendFilters(null);
     elements.summary.textContent = 'No project analyzed yet.';
     elements.metrics.innerHTML = '';
+    updateFlythroughButton();
   }
 });
 
 elements.resetButton.addEventListener('click', () => {
+  renderer.stopFlythroughTour?.({ preserveSelection: false });
   setBusyState(false);
   hideError();
   renderSelection(null);
+  clearAllOverlayFilters();
+
+  // Reset view should match keyboard 'F': keep data, refocus camera.
+  if ((renderer.pickableMeshes?.length ?? 0) > 0) {
+    renderer.clearSelectedMesh?.();
+    renderer.focusCity();
+    updateFlythroughButton();
+    setStatus('Ready');
+    return;
+  }
+
   elements.metrics.innerHTML = '';
   elements.summary.textContent = 'No project analyzed yet.';
-  clearAllOverlayFilters();
   renderer.reset();
+  updateLegendFilters(null);
+  updateFlythroughButton();
   setStatus('Idle');
+});
+
+function generateTourQuip(sel) {
+  const m = sel.methods ?? 0;
+  const loc = sel.linesOfCode ?? 0;
+  const cyc = parseFloat(sel.cyclomatic) || 0;
+  const params = sel.maxMethodParameters ?? 0;
+  const statics = sel.staticMethodCount ?? 0;
+  const inner = sel.innerTypeCount ?? 0;
+  const comments = sel.commentLineCount ?? 0;
+  const score = parseFloat(sel.complexity) || 0;
+
+  // Detect code smells in order of severity/priority
+  if (m > 30) {
+    return {
+      badge: 'God Class',
+      emoji: '\u{1F6A8}',
+      text: `${m} methods. ${getRandomQuip('godClass') || 'This class does everything.'}`
+    };
+  }
+  if (m > 20) {
+    return {
+      badge: 'Chunky Class',
+      emoji: '\u26A0\uFE0F',
+      text: `${m} methods. ${getRandomQuip('chunkiClass') || 'Getting chunky.'}`
+    };
+  }
+  if (loc > 500) {
+    return {
+      badge: 'The Novel',
+      emoji: '\u{1F4DA}',
+      text: `${loc} lines. ${getRandomQuip('theNovel') || 'No one has read this.'}`
+    };
+  }
+  if (loc > 200) {
+    return {
+      badge: 'The Essay',
+      emoji: '\u{1F4D6}',
+      text: `${loc} lines. ${getRandomQuip('theEssay') || 'Technically a type.'}`
+    };
+  }
+  if (cyc > 30) {
+    return {
+      badge: 'The Labyrinth',
+      emoji: '\u{1F300}',
+      text: `Cyclomatic complexity ${cyc}. ${getRandomQuip('labyrinth') || 'So many paths.'}`
+    };
+  }
+  if (cyc > 10) {
+    return {
+      badge: 'Branch Collector',
+      emoji: '\u{1F500}',
+      text: `${cyc} execution paths. ${getRandomQuip('branchCollector') || 'Pray your tests cover it.'}`
+    };
+  }
+  if (statics > 5) {
+    return {
+      badge: 'Utility Blob',
+      emoji: '\u{1F6E0}\uFE0F',
+      text: `${statics} static methods. ${getRandomQuip('utilityBlob') || 'A namespace in disguise.'}`
+    };
+  }
+  if (params >= 7) {
+    return {
+      badge: 'Param Hoarder',
+      emoji: '\u{1F4CB}',
+      text: `${params} parameters on one method. ${getRandomQuip('paramHoarder') || 'Just use a data class.'}`
+    };
+  }
+  if (params >= 5) {
+    return {
+      badge: 'Param Pusher',
+      emoji: '\u{1F914}',
+      text: `${params} parameters. ${getRandomQuip('paramPusher') || 'You\'re on thin ice.'}`
+    };
+  }
+  if (inner > 0) {
+    return {
+      badge: 'Matryoshka',
+      emoji: '\u{1FA86}',
+      text: `${inner} inner type${inner > 1 ? 's' : ''}. ${getRandomQuip('matryoshka') || 'Classes all the way down.'}`
+    };
+  }
+  if (comments === 0 && loc > 50) {
+    return {
+      badge: 'Silent Type',
+      emoji: '\u{1F92B}',
+      text: `${loc} lines, zero comments. ${getRandomQuip('silentType') || 'The author assumes you know.'}`
+    };
+  }
+  if (score > 10) {
+    return {
+      badge: 'Complexity Champ',
+      emoji: '\u{1F525}',
+      text: `Complexity score ${score}. ${getRandomQuip('complexityChamp') || 'This building earned every floor.'}`
+    };
+  }
+
+  // Default: tallest tower fallback
+  return {
+    badge: 'Tallest Tower',
+    emoji: '\u{1F3C6}',
+    text: `${m} methods, ${loc} LOC. ${getRandomQuip('tallestTower') || 'Standing tall. For now.'}`
+  };
+}
+
+function handleTourBuildingFocus(selection) {
+  const popup = elements.tourPopup;
+  if (!popup) return;
+
+  if (!selection) {
+    popup.classList.add('hidden');
+    popup.innerHTML = '';
+    return;
+  }
+
+  const { badge, emoji, text } = generateTourQuip(selection);
+  const pkg = selection.packageName ?? '';
+  const name = selection.name ?? '';
+  const type = selection.type ?? '';
+
+  popup.innerHTML = `
+    <div class="tour-popup__badge">${emoji} ${badge}</div>
+    <div class="tour-popup__name">${name}</div>
+    <div class="tour-popup__package">${pkg}${type ? ' \u00B7 ' + type : ''}</div>
+    <div class="tour-popup__quip">${text}</div>
+  `;
+
+  // Force re-animation on each new building
+  popup.classList.add('hidden');
+  popup.classList.remove('hidden');
+}
+
+function getTourSpeedMultiplier() {  const val = elements.tourSpeedSelect?.value ?? 'normal';
+  if (val === 'slow') return 1.8;
+  if (val === 'fast') return 0.45;
+  return 1.0;
+}
+
+elements.flythroughButton?.addEventListener('click', () => {
+  hideError();
+
+  if (renderer.isTourRunning) {
+    renderer.stopFlythroughTour({ preserveSelection: true });
+    return;
+  }
+
+  if ((renderer.getTallestBuildingMeshes?.(1)?.length ?? 0) === 0) {
+    showError('Need at least one building before this thing can do a city fly-through.');
+    updateFlythroughButton();
+    return;
+  }
+
+  renderer.startFlythroughTour({ speedMultiplier: getTourSpeedMultiplier() }).catch(error => {
+    renderer.stopFlythroughTour({ preserveSelection: true });
+    showError(error.message || 'Fly-through failed.');
+    updateFlythroughButton();
+  });
 });
 
 elements.apiUnavailableCloseButton.addEventListener('click', () => {
@@ -915,10 +1574,38 @@ elements.apiUnavailableRetryButton.addEventListener('click', async () => {
   }
 });
 
+elements.funModeToggle?.addEventListener('change', (event) => {
+  funModeEnabled = event.target.checked;
+  window.localStorage.setItem('code-city.funMode', String(funModeEnabled));
+});
+
+
+elements.packageDependencyToggle?.addEventListener('change', (event) => {
+  window.localStorage.setItem('code-city.dependencyOverlay.packages', String(event.target.checked));
+  applyDependencyOverlaySettings();
+});
+
+elements.buildingDependencyToggle?.addEventListener('change', (event) => {
+  window.localStorage.setItem('code-city.dependencyOverlay.buildings', String(event.target.checked));
+  applyDependencyOverlaySettings();
+});
+
 renderSelection(null);
+// Initialize theme system early, after DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme();
+    setupThemeHandlers();
+  });
+} else {
+  initializeTheme();
+  setupThemeHandlers();
+}
 setupMetricTooltips();
 setupSearchHandlers();
 setupMetricFilterHandlers();
+updateLegendFilters(null);
+updateFlythroughButton();
 setStatus('Idle');
 probeApiAvailability();
 

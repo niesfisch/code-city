@@ -18,5 +18,5 @@ public class Cityscape {
     private List<Plateau> plateaus;
     private List<Building> buildings;
     private CityMetrics metrics;
+    private DependencyOverlay dependencies;
 }
-

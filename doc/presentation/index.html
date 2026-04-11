@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Code City + Vibe Coding Talk</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="deck" id="deck" aria-live="polite">
+      <header class="topbar">
+        <div class="brand">Code City - Turn Java an Kotlin Code into cityscapes</div>
+        <div class="meta">
+          <span id="slideCounter">1 / 1</span>
+          <span class="dot">|</span>
+          <span>30 min</span>
+        </div>
+      </header>
+
+      <main class="slide-wrap" id="slideWrap">
+        <article class="slide" id="slide" role="group" aria-label="Presentation slide">
+          <div class="slide-grid">
+            <section class="copy">
+              <p class="kicker" id="slideKicker"></p>
+              <h1 id="slideTitle"></h1>
+              <p class="subtitle" id="slideSubtitle"></p>
+              <ul class="bullets" id="slideBullets"></ul>
+            </section>
+            <aside class="visual">
+              <img id="slideImage" alt="Slide visual" />
+            </aside>
+          </div>
+          <footer class="notes hidden" id="slideNotes"></footer>
+        </article>
+      </main>
+
+      <footer class="bottombar">
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="controls">
+          <button id="prevBtn" type="button" aria-label="Previous slide">Prev</button>
+          <button id="nextBtn" type="button" aria-label="Next slide">Next</button>
+          <button id="notesBtn" type="button" aria-label="Toggle speaker notes">Notes</button>
+        </div>
+      </footer>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+

@@ -65,11 +65,101 @@
             <button id="analyzeButton" type="submit">Analyze project</button>
             <button id="resetButton" type="button" class="secondary">Reset view</button>
           </div>
+          <div class="button-row tour-row">
+            <button id="flythroughButton" type="button" class="secondary" disabled>Fly through</button>
+            <select id="tourSpeedSelect" class="tour-speed-select" aria-label="Tour speed" title="Tour speed">
+              <option value="slow">Slow</option>
+              <option value="normal" selected>Normal</option>
+              <option value="fast">Fast</option>
+            </select>
+          </div>
 
           <p class="hint">
             Patterns accept <code>*</code> wildcards and are matched against package names and file paths. Toggle the switch to include test sources in the analysis.
           </p>
         </form>
+
+        <section class="panel stack-md">
+          <label class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-label">Fun mode</span>
+              <span class="toggle-hint">Enable witty code smell commentary on hover</span>
+            </div>
+            <div class="toggle-switch">
+              <input id="funModeToggle" name="funMode" type="checkbox" role="switch" checked />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </div>
+          </label>
+        </section>
+
+        <section class="panel stack-md">
+          <div class="section-title">Theme</div>
+          <div class="theme-selector">
+            <button class="theme-btn" data-theme="dark" title="Dark theme" aria-label="Select dark theme" aria-pressed="true">
+              <span class="theme-dot" style="background: #08111f;"></span>
+              <span class="theme-name">Dark</span>
+            </button>
+            <button class="theme-btn" data-theme="midnight" title="Midnight theme" aria-label="Select midnight theme">
+              <span class="theme-dot" style="background: #0a0e1a;"></span>
+              <span class="theme-name">Midnight</span>
+            </button>
+            <button class="theme-btn" data-theme="twilight" title="Twilight theme" aria-label="Select twilight theme">
+              <span class="theme-dot" style="background: #2d1b2e;"></span>
+              <span class="theme-name">Twilight</span>
+            </button>
+            <button class="theme-btn" data-theme="forest" title="Forest theme" aria-label="Select forest theme">
+              <span class="theme-dot" style="background: #1a2e1a;"></span>
+              <span class="theme-name">Forest</span>
+            </button>
+            <button class="theme-btn" data-theme="neon" title="Neon theme" aria-label="Select neon theme">
+              <span class="theme-dot" style="background: #0d0221;"></span>
+              <span class="theme-name">Neon</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel stack-md">
+          <div class="section-title">Dependency arches</div>
+          <label class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-label">Package highways</span>
+              <span class="toggle-hint">District-to-district dependencies across the city.</span>
+            </div>
+            <div class="toggle-switch">
+              <input id="packageDependencyToggle" name="packageDependencyToggle" type="checkbox" role="switch" checked />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </div>
+          </label>
+          <label class="toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-label">Building streets</span>
+              <span class="toggle-hint">Local dependencies for the selected building.</span>
+            </div>
+            <div class="toggle-switch">
+              <input id="buildingDependencyToggle" name="buildingDependencyToggle" type="checkbox" role="switch" checked />
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            </div>
+          </label>
+          <div id="dependencyOverlayStats" class="dependency-overlay-stats muted">Overlay off</div>
+          <dl class="encoding-list dependency-legend-list">
+            <div class="encoding-row dependency-legend-row">
+              <dt><span class="dependency-line dependency-line--highway"></span></dt>
+              <dd><strong>Highways</strong> - package-to-package dependencies across the city.</dd>
+            </div>
+            <div class="encoding-row dependency-legend-row">
+              <dt><span class="dependency-line dependency-line--outgoing"></span></dt>
+              <dd><strong>Local outgoing</strong> - selected building/package depends on others.</dd>
+            </div>
+            <div class="encoding-row dependency-legend-row">
+              <dt><span class="dependency-line dependency-line--incoming"></span></dt>
+              <dd><strong>Local incoming</strong> - others depend on your selection.</dd>
+            </div>
+            <div class="encoding-row dependency-legend-row">
+              <dt><span class="dependency-line dependency-line--complexity"></span></dt>
+              <dd><strong>Complexity tint</strong> - greener to warmer means more complex sources.</dd>
+            </div>
+          </dl>
+        </section>
 
         <section class="panel stack-md">
           <div class="section-title">Search</div>
@@ -102,21 +192,21 @@
         </section>
 
         <section class="panel stack-md">
-          <div class="section-title">Legend</div>
-          <p class="hint">Use these type tags to filter. Building colors now represent complexity heat.</p>
+          <div id="legendSectionTitle" class="section-title">Type filters</div>
+          <p id="legendSectionHint" class="hint">Filter visible building types. Building colors show complexity heat.</p>
           <ul class="legend">
-            <li data-highlight-type="CLASS"><span class="swatch class"></span> Class (Java)</li>
-            <li data-highlight-type="ABSTRACT"><span class="swatch abstract"></span> Abstract class (Java)</li>
-            <li data-highlight-type="INTERFACE"><span class="swatch interface"></span> Interface (Java)</li>
-            <li data-highlight-type="RECORD"><span class="swatch record"></span> Record (Java)</li>
-            <li data-highlight-type="ENUM"><span class="swatch enum"></span> Enum (Java)</li>
-            <li data-highlight-type="KOTLIN_CLASS"><span class="swatch kotlin-class"></span> Class (Kotlin)</li>
-            <li data-highlight-type="KOTLIN_INTERFACE"><span class="swatch kotlin-interface"></span> Interface (Kotlin)</li>
-            <li data-highlight-type="KOTLIN_OBJECT"><span class="swatch kotlin-object"></span> Object (Kotlin)</li>
-            <li data-highlight-type="KOTLIN_DATA_CLASS"><span class="swatch kotlin-data-class"></span> Data Class (Kotlin)</li>
-            <li data-highlight-type="PLATEAU"><span class="swatch plateau"></span> Package plateau</li>
+            <li data-highlight-type="CLASS"><span class="swatch class"></span><span class="legend-label">Class (Java)</span></li>
+            <li data-highlight-type="ABSTRACT"><span class="swatch abstract"></span><span class="legend-label">Abstract class (Java)</span></li>
+            <li data-highlight-type="INTERFACE"><span class="swatch interface"></span><span class="legend-label">Interface (Java)</span></li>
+            <li data-highlight-type="RECORD"><span class="swatch record"></span><span class="legend-label">Record (Java)</span></li>
+            <li data-highlight-type="ENUM"><span class="swatch enum"></span><span class="legend-label">Enum (Java)</span></li>
+            <li data-highlight-type="KOTLIN_CLASS"><span class="swatch kotlin-class"></span><span class="legend-label">Class (Kotlin)</span></li>
+            <li data-highlight-type="KOTLIN_INTERFACE"><span class="swatch kotlin-interface"></span><span class="legend-label">Interface (Kotlin)</span></li>
+            <li data-highlight-type="KOTLIN_OBJECT"><span class="swatch kotlin-object"></span><span class="legend-label">Object (Kotlin)</span></li>
+            <li data-highlight-type="KOTLIN_DATA_CLASS"><span class="swatch kotlin-data-class"></span><span class="legend-label">Data Class (Kotlin)</span></li>
           </ul>
           <p class="legend-hint">Click to filter · click again to clear</p>
+          <p id="legendEmptyState" class="hint hidden">No building types are visible yet. Analyze a project to show the available filters.</p>
 
           <div class="section-title" style="margin-top: 4px;">Encoding (Java & Kotlin)</div>
           <dl class="encoding-list">
@@ -142,19 +232,21 @@
         </section>
 
         <section class="panel stack-md">
-          <div class="section-title">Navigation</div>
+          <div class="section-title">Navigation & Selection</div>
           <ul class="controls-list">
             <li><kbd>Left mouse</kbd><span>Rotate camera</span></li>
             <li><kbd>Right mouse</kbd><span>Pan view</span></li>
             <li><kbd>Mouse wheel</kbd><span>Zoom in/out</span></li>
+            <li><kbd>Click</kbd><span>Select building/plateau (lock for metrics)</span></li>
             <li><kbd>Double click</kbd><span>Focus clicked plateau/building</span></li>
+            <li><kbd>Esc</kbd><span>Clear selection</span></li>
             <li><kbd>W A S D</kbd> / <kbd>Arrows</kbd><span>Pan with keyboard</span></li>
-            <li><kbd>Q</kbd> / <kbd>E</kbd><span>Rotate left/right</span></li>
             <li><kbd>+</kbd> / <kbd>-</kbd><span>Zoom in/out</span></li>
             <li><kbd>F</kbd><span>Focus whole city</span></li>
             <li><kbd>R</kbd> / <kbd>0</kbd><span>Reset camera</span></li>
+            <li><kbd>Q</kbd> / <kbd>E</kbd><span>Rotate left/right</span></li>
           </ul>
-          <p class="hint">Click inside the 3D map first to activate keyboard controls.</p>
+          <p class="hint">Building arches are shown only when a building is selected. Click inside the 3D map to activate keyboard controls.</p>
         </section>
       </aside>
 
@@ -190,7 +282,10 @@
         </div>
 
         <div class="viewer-layout">
-          <div id="viewer" class="panel viewer"></div>
+          <div id="viewer" class="panel viewer">
+            <div id="viewerTooltip" class="viewer-tooltip hidden" role="tooltip"></div>
+            <div id="tourPopup" class="tour-popup hidden" aria-live="polite"></div>
+          </div>
           <div class="stack-md">
             <section class="panel details-panel">
               <div class="section-title">Selection</div>

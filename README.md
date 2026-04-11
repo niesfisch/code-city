@@ -4,11 +4,31 @@
 
 Click on Image to See a Video Sample of Code City in Action
 
-[![Video Sample](https://img.youtube.com/vi/sKPnl18Tad8/0.jpg)](https://youtu.be/sKPnl18Tad8)
+[![Video Sample](doc/city_overview.png)](https://youtu.be/sKPnl18Tad8)
 
 Code City turns a Java or Kotlin project into a 3D cityscape.
 
 Packages become plateaus. Classes, interfaces, enums, records, and abstract classes (Java) or classes, interfaces, objects, and data classes (Kotlin) become buildings. The more code and branching a type has, the taller the building gets. The goal is not perfect static analysis theology; the goal is a fast visual feel for structure and complexity.
+
+## Table of Contents
+
+- [Inspiration and Credit](#inspiration-and-credit)
+- [What it does](#what-it-does)
+- [How the city mapping works](#how-the-city-mapping-works)
+- [Dependency arches (Hybrid overlay)](#dependency-arches-hybrid-overlay)
+- [Search & Navigation](#search--navigation)
+- [Interaction highlights](#interaction-highlights)
+- [Tech stack](#tech-stack)
+- [Quick start](#quick-start)
+- [Development workflow](#development-workflow)
+- [Packaging](#packaging)
+- [Include and exclude patterns](#include-and-exclude-patterns)
+- [API](#api)
+- [Project structure](#project-structure)
+- [Metrics reference](#metrics-reference)
+- [Limitations](#limitations)
+- [Verification done in this workspace](#verification-done-in-this-workspace)
+- [License](#license)
 
 ## Inspiration and Credit
 
@@ -21,15 +41,11 @@ Huge props to **Richard Wettel** for the original software-city metaphor and the
 
 As far as we can tell, the original CodeCity project is not actively maintained anymore, but it is still extremely useful inspiration for modern tooling.
 
-### Example cityscapes
+### Example cityscape for the spring-framework codebase
 
 Multiple Java and/or Kotlin projects at the top level create distinct base plateaus stacked as nested districts:
 
-![Code City visualization example 1](doc/city1.png)
-
-![Code City visualization example 2](doc/city2.png)
-
-![Code City visualization example 3](doc/city3.png)
+![Code City visualization example 1](doc/city_overview.png)
 
 <img src="doc/left5.png" alt="Menu" width="150" /> <img src="doc/left2.png" alt="Menu" width="150" /> <img src="doc/left3.png" alt="Menu" width="150" /> <img src="doc/left4.png" alt="Menu" width="150" /> 
 
@@ -37,9 +53,13 @@ Multiple Java and/or Kotlin projects at the top level create distinct base plate
 
 - Scans a directory tree for `.java` and `.kt` (Kotlin) files
 - Supports include and exclude patterns such as `de.marcelsauer.*` or `*.generated.*`
+- Lets you pick the project directory via a built-in folder browser (or paste a path)
+- Can exclude test sources by source roots and naming conventions (`Test*`, `*Test`, `*IT`, ...)
 - Parses Java and Kotlin source with JavaParser
 - Calculates simple structural metrics per top-level type
 - Renders the result as an interactive 3D city in the browser with Three.js
+- Supports dependency arches (hybrid mode): global package highways + local building streets
+- Includes interactive search, metric filters, and guided fly-through tours of hotspots
 - Ships as a Spring Boot application with the frontend bundled into the jar
 - Can also produce platform-specific runtime images via `jpackage`
 
@@ -53,6 +73,24 @@ Multiple Java and/or Kotlin projects at the top level create distinct base plate
 - Depth -> LOC (lines of code)
 - Building color -> total cyclomatic heat palette (violet low -> yellow high, log-scaled)
 - Type distinction -> legend filters + selection details
+
+## Dependency arches (Hybrid overlay)
+
+Code City can render dependency relationships as arches above the city.
+
+- `Dependency arches (Hybrid)`: master toggle for the full overlay
+- `Package arches`: city-wide highways between packages (aggregated from type dependencies)
+- `Building arches`: local streets for the currently selected building or package
+
+How to read them:
+
+- More arches between two areas usually means stronger coupling pressure
+- Local outgoing arches: your selected building/package depends on others
+- Local incoming arches: others depend on your selected building/package
+- Complexity tint shifts greener -> warmer as source-side complexity rises
+- If `Bld arches: 0`, select a building or plateau first (local streets are context-based)
+
+For metric-level details and caveats, see `README_metrics.md`.
 
 ## Search & Navigation
 
@@ -89,15 +127,25 @@ Keyboard (click inside the 3D map first):
 
 This is useful for quickly navigating large codebases or investigating a specific type's complexity and structure.
 
+## Interaction highlights
+
+- **Directory picker** (`Browse`): choose a project folder without pasting paths manually
+- **Fun mode**: toggles witty hover commentary for code smells and hotspots
+- **Fly through**: camera tour over tallest (or currently highlighted) buildings
+- **Selection lock**: click to keep metrics readable; click empty map to clear
+- **API hint overlay**: if the backend is unreachable, the UI shows a dismissible help overlay with retry
+
 ## Tech stack
 
-- Java 21
-- Spring Boot 3
-- Gradle Kotlin DSL
-- JavaParser
-- Vite
-- Three.js
-- GitHub Actions
+| Technology | Why this project uses it |
+| --- | --- |
+| Java 21 | Modern LTS baseline with strong performance, records/sealed types support, and long-term maintainability. |
+| Spring Boot 3 | Fast, production-ready backend setup for REST APIs and packaging the frontend into one deployable app. |
+| Gradle Kotlin DSL | Typed, maintainable build configuration for multi-module build, testing, and packaging workflows. |
+| JavaParser | AST-based Java analysis for reliable structural metrics instead of brittle text parsing. |
+| Vite | Very fast frontend dev/build loop with simple API proxying to the backend during development. |
+| Three.js | Browser-native 3D rendering engine for interactive city visualization without native clients. |
+| GitHub Actions | Automated CI for reproducible builds, tests, and cross-platform packaging runs. |
 
 ## Quick start
 
@@ -264,9 +312,19 @@ Example payload:
 {
   "path": "/path/to/project",
   "includePattern": "de.marcelsauer.*",
-  "excludePattern": "*.generated.*"
+  "excludePattern": "*.generated.*",
+  "excludeTests": true
 }
 ```
+
+### Browse directories
+
+```text
+GET /api/analyze/browse
+GET /api/analyze/browse?path=/path/to/current/folder
+```
+
+Returns the current folder and child entries for the UI folder picker.
 
 ## Project structure
 

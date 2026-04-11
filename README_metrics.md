@@ -3,6 +3,20 @@
 > A detailed explanation of every metric collected, how it maps to the visual cityscape,
 > what healthy values look like, and what red flags to watch for.
 
+## Table of Contents
+
+- [The City as a Metaphor](#the-city-as-a-metaphor)
+- [Building-Level Metrics](#building-level-metrics)
+- [City-Level (Project) Metrics](#city-level-project-metrics)
+- [Dependency Arches (Hybrid Overlay)](#dependency-arches-hybrid-overlay)
+- [Building Color Legend](#building-color-legend)
+- [Plateau Nesting and Package Hierarchy](#plateau-nesting-and-package-hierarchy)
+- [ASCII City Example - Small Project](#ascii-city-example--small-project)
+- [ASCII City Example - Medium Project (~140 types)](#ascii-city-example--medium-project-140-types)
+- [Red-Flag Patterns to Watch in the Cityscape](#red-flag-patterns-to-watch-in-the-cityscape)
+- [Interpreting the Metrics Together](#interpreting-the-metrics-together)
+- [References](#references)
+
 ---
 
 ## The City as a Metaphor
@@ -342,6 +356,54 @@ These aggregate the building metrics into a bird's-eye view of the whole project
 | **Java files**      | Source files with `.java` extension. |
 | **Kotlin files**    | Source files with `.kt` extension. |
 | **Analysis time**   | Wall-clock milliseconds for the full scan, parse, layout, and metric computation. |
+
+---
+
+## Dependency Arches (Hybrid Overlay)
+
+The arch overlay adds relationship context on top of shape metrics.
+
+- **Package arches (highways)**: global package-to-package links across the whole city
+- **Building arches (local streets)**: focused type-level links for your current selection
+- **Hybrid mode**: both at once (global map + local detail)
+
+### Data semantics
+
+Each edge has two values:
+
+- **weight**: how many references were observed from source to target
+- **complexity**: average complexity of the source-side types contributing to that edge
+
+Type edges are collected from in-project references (imports, extends/implements, and Kotlin equivalents).
+Package edges are aggregated from type edges (`source package -> target package`).
+
+### Visual encoding
+
+| Visual cue | Meaning |
+|------------|---------|
+| Arc count | More arcs around one area usually means stronger coupling |
+| Arc color tint | Greener to warmer means higher source-side complexity |
+| Highway opacity/height | Heavier package links render a bit stronger and higher |
+| Local outgoing/incoming color split | For single-type selection: outgoing vs incoming dependencies |
+
+### How to interpret quickly
+
+- **Many highways between the same two districts** -> package boundaries may be too chatty
+- **A type with many local streets in and out** -> likely orchestration hub, facade, or god object
+- **Mostly incoming local streets** -> likely shared service/abstraction used by many others
+- **Mostly outgoing local streets** -> likely integration-heavy coordinator
+- **Warm-colored arch clusters** -> dependency flow originates in already-complex types
+
+### Practical caveats
+
+- This is a **lightweight static dependency view**, not a full semantic graph.
+- Edges only include types discovered in the analyzed scope (no external jars/modules).
+- Kotlin dependency extraction is pattern-based, so some references can be missed.
+- Rendering is intentionally capped for readability/performance:
+  - package highways: top ~220 edges
+  - local streets (single type): top ~120 edges
+  - local streets (package selection): top ~140 edges
+- Local streets require a selection; if nothing is selected, `Bld arches` can be `0` by design.
 
 ---
 

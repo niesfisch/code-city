@@ -1,0 +1,14 @@
+{
+  "name": "code-city-presentation",
+  "version": "0.1.0",
+  "description": "Presentation for the Code City talk",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "export-pdf": "node export-pdf.mjs"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "playwright": "^1.40.0"
+  }
+}

@@ -11,6 +11,7 @@ import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -60,5 +61,34 @@ class AnalysisControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", containsString("does not exist")));
+    }
+
+    @Test
+    void shouldReturnSourceFileFromSrcMainJava() throws Exception {
+        String projectPath = Path.of("..", "samples", "demo-project").toAbsolutePath().normalize().toString();
+
+        mockMvc.perform(get("/api/analyze/source")
+                        .param("projectPath", projectPath)
+                        .param("sourceFileName", "GreetingService.java")
+                        .param("fullName", "com.example.demo.service.GreetingService")
+                        .param("packageName", "com.example.demo.service")
+                        .param("name", "GreetingService"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sourceFileName", is("GreetingService.java")))
+                .andExpect(jsonPath("$.language", is("java")))
+                .andExpect(jsonPath("$.content", containsString("class GreetingService")));
+    }
+
+    @Test
+    void shouldRejectPathTraversalInSourceRequest() throws Exception {
+        String projectPath = Path.of("..", "samples", "demo-project").toAbsolutePath().normalize().toString();
+
+        mockMvc.perform(get("/api/analyze/source")
+                        .param("projectPath", projectPath)
+                        .param("sourceFileName", "../../etc/passwd")
+                        .param("fullName", "x")
+                        .param("packageName", "")
+                        .param("name", "x"))
+                .andExpect(status().isBadRequest());
     }
 }

@@ -23,6 +23,8 @@ import de.marcelsauer.codecity.model.Building;
 import de.marcelsauer.codecity.model.BuildingType;
 import de.marcelsauer.codecity.model.CityMetrics;
 import de.marcelsauer.codecity.model.Cityscape;
+import de.marcelsauer.codecity.model.DependencyEdge;
+import de.marcelsauer.codecity.model.DependencyOverlay;
 import de.marcelsauer.codecity.model.Dimensions;
 import de.marcelsauer.codecity.model.Metrics;
 import de.marcelsauer.codecity.model.Plateau;
@@ -36,6 +38,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +92,7 @@ public class JavaAnalysisService {
         
         Map<String, List<Building>> buildingsByPackage = new LinkedHashMap<>();
         int filesParsed = 0;
+        Set<String> seenFullNames = new HashSet<>();  // Track seen buildings to avoid duplicates
 
         for (Path javaFile : javaFiles) {
             List<Building> buildings = extractBuildings(basePath, javaFile, includePattern, excludePattern);
@@ -95,6 +100,11 @@ public class JavaAnalysisService {
                 filesParsed++;
             }
             for (Building building : buildings) {
+                // Skip duplicate buildings (same fullName)
+                if (!seenFullNames.add(building.getFullName())) {
+                    log.warn("Skipping duplicate building: {}", building.getFullName());
+                    continue;
+                }
                 buildingsByPackage.computeIfAbsent(building.getPackageName(), ignored -> new ArrayList<>()).add(building);
             }
         }
@@ -115,10 +125,13 @@ public class JavaAnalysisService {
         PackageNode layoutRoot = skipSingleChildChain(tree);
         layoutNode(layoutRoot, 0.0, 0.0, 0.0, 1, plateaus, buildings);
 
+        DependencyOverlay dependencies = buildDependencies(basePath, javaFiles, buildings, includePattern, excludePattern);
+
         return Cityscape.builder()
                 .plateaus(plateaus)
                 .buildings(buildings)
                 .metrics(buildCityMetrics(sortedPackages, buildings, filesScanned, javaFilesScanned, kotlinFilesScanned, filesParsed))
+                .dependencies(dependencies)
                 .build();
     }
 
@@ -744,8 +757,8 @@ public class JavaAnalysisService {
             double cyclomatic = b.getMetrics().getCyclomatic();
 
             // Wettel CodeCity canonical encoding:
-            //   Height → NOM   Width → NOA   Depth → LOC (sqrt-scaled)
-            double h = Math.max(1.5, Math.min(30.0, 1.0 + nom * 0.65));
+            //   Height -> NOM (log-scaled)   Width -> NOA   Depth -> LOC (sqrt-scaled)
+            double h = Math.max(1.5, Math.min(40.0, 1.0 + Math.log1p(Math.max(0, nom)) * 5.6));
             double w = Math.max(1.2, Math.min(3.5,  1.0 + noa * 0.35));
             double d = Math.max(1.2, Math.min(3.5,  1.0 + Math.sqrt(Math.max(1.0, loc)) * 0.16));
 
@@ -954,5 +967,317 @@ public class JavaAnalysisService {
             this.depth    = depth;
         }
     }
-}
 
+    /**
+     * Builds dependency edges for the dependency arch overlay.
+     * Type edges are direct references; package edges are aggregated from type edges.
+     */
+    private DependencyOverlay buildDependencies(Path basePath,
+                                                List<Path> sourceFiles,
+                                                List<Building> buildings,
+                                                String includePattern,
+                                                String excludePattern) {
+        if (buildings.isEmpty() || sourceFiles.isEmpty()) {
+            return DependencyOverlay.builder()
+                    .packageEdges(List.of())
+                    .typeEdges(List.of())
+                    .build();
+        }
+
+        Set<String> knownTypes = buildings.stream()
+                .map(Building::getFullName)
+                .collect(Collectors.toSet());
+        Map<String, List<String>> knownBySimpleName = indexTypesBySimpleName(knownTypes);
+        Map<String, Double> complexityByType = buildings.stream()
+                .filter(b -> b.getMetrics() != null)
+                .collect(Collectors.toMap(Building::getFullName, b -> b.getMetrics().getComplexity(), (a, b) -> a));
+
+        Map<String, EdgeAccumulator> typeAcc = new HashMap<>();
+
+        for (Path sourceFile : sourceFiles) {
+            try {
+                String fileName = sourceFile.getFileName().toString();
+                if (fileName.endsWith(".java")) {
+                    collectJavaDependencies(basePath, sourceFile, includePattern, excludePattern,
+                            knownTypes, knownBySimpleName, complexityByType, typeAcc);
+                } else if (fileName.endsWith(".kt")) {
+                    collectKotlinDependencies(basePath, sourceFile, includePattern, excludePattern,
+                            knownTypes, knownBySimpleName, complexityByType, typeAcc);
+                }
+            } catch (Exception ex) {
+                log.debug("Skipping dependency extraction for {}: {}", sourceFile, ex.getMessage());
+            }
+        }
+
+        List<DependencyEdge> typeEdges = typeAcc.values().stream()
+                .map(EdgeAccumulator::toEdge)
+                .sorted(Comparator.comparingInt(DependencyEdge::getWeight).reversed()
+                        .thenComparing(DependencyEdge::getSource)
+                        .thenComparing(DependencyEdge::getTarget))
+                .toList();
+
+        Map<String, EdgeAccumulator> packageAcc = new HashMap<>();
+        for (DependencyEdge edge : typeEdges) {
+            String sourcePkg = packageOf(edge.getSource());
+            String targetPkg = packageOf(edge.getTarget());
+            if (sourcePkg.isEmpty() || targetPkg.isEmpty() || sourcePkg.equals(targetPkg)) {
+                continue;
+            }
+            String key = sourcePkg + "->" + targetPkg;
+            packageAcc.computeIfAbsent(key, ignored -> new EdgeAccumulator(sourcePkg, targetPkg))
+                    .add(edge.getWeight(), edge.getComplexity());
+        }
+
+        List<DependencyEdge> packageEdges = packageAcc.values().stream()
+                .map(EdgeAccumulator::toEdge)
+                .sorted(Comparator.comparingInt(DependencyEdge::getWeight).reversed()
+                        .thenComparing(DependencyEdge::getSource)
+                        .thenComparing(DependencyEdge::getTarget))
+                .toList();
+
+        return DependencyOverlay.builder()
+                .packageEdges(packageEdges)
+                .typeEdges(typeEdges)
+                .build();
+    }
+
+    private void collectJavaDependencies(Path basePath,
+                                         Path sourceFile,
+                                         String includePattern,
+                                         String excludePattern,
+                                         Set<String> knownTypes,
+                                         Map<String, List<String>> knownBySimpleName,
+                                         Map<String, Double> complexityByType,
+                                         Map<String, EdgeAccumulator> acc) throws IOException {
+        ParseResult<CompilationUnit> parseResult = javaParser.parse(sourceFile);
+        if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
+            return;
+        }
+
+        CompilationUnit cu = parseResult.getResult().orElseThrow();
+        String packageName = cu.getPackageDeclaration().map(pd -> pd.getNameAsString()).orElse("(default)");
+        String relativePath = basePath.relativize(sourceFile).toString().replace('\\', '/');
+        if (!matchesPattern(packageName, relativePath, includePattern, excludePattern)) {
+            return;
+        }
+
+        List<String> sourceTypes = cu.getTypes().stream()
+                .map(type -> "(default)".equals(packageName) ? type.getNameAsString() : packageName + "." + type.getNameAsString())
+                .filter(knownTypes::contains)
+                .toList();
+        if (sourceTypes.isEmpty()) {
+            return;
+        }
+
+        Map<String, String> importsBySimple = new HashMap<>();
+        List<String> wildcardImportPrefixes = new ArrayList<>();
+        Set<String> refNames = new HashSet<>();
+
+        cu.getImports().forEach(importDecl -> {
+            if (importDecl.isStatic()) {
+                return;
+            }
+            String importName = importDecl.getNameAsString();
+            if (importDecl.isAsterisk()) {
+                wildcardImportPrefixes.add(importName);
+                return;
+            }
+            importsBySimple.putIfAbsent(simpleNameOf(importName), importName);
+            refNames.add(importName);
+        });
+
+        cu.findAll(ClassOrInterfaceDeclaration.class).stream()
+                .filter(ClassOrInterfaceDeclaration::isTopLevelType)
+                .forEach(type -> {
+                    type.getExtendedTypes().forEach(t -> refNames.add(t.getNameWithScope()));
+                    type.getImplementedTypes().forEach(t -> refNames.add(t.getNameWithScope()));
+                });
+        cu.findAll(EnumDeclaration.class).stream()
+                .filter(EnumDeclaration::isTopLevelType)
+                .forEach(type -> type.getImplementedTypes().forEach(t -> refNames.add(t.getNameWithScope())));
+        cu.findAll(RecordDeclaration.class).stream()
+                .filter(RecordDeclaration::isTopLevelType)
+                .forEach(type -> type.getImplementedTypes().forEach(t -> refNames.add(t.getNameWithScope())));
+
+        for (String sourceType : sourceTypes) {
+            double sourceComplexity = complexityByType.getOrDefault(sourceType, 0.0);
+            for (String rawRef : refNames) {
+                String targetType = resolveTypeReference(rawRef, packageName, importsBySimple,
+                        wildcardImportPrefixes, knownTypes, knownBySimpleName);
+                if (targetType == null || targetType.equals(sourceType)) {
+                    continue;
+                }
+                String key = sourceType + "->" + targetType;
+                acc.computeIfAbsent(key, ignored -> new EdgeAccumulator(sourceType, targetType)).add(1, sourceComplexity);
+            }
+        }
+    }
+
+    private void collectKotlinDependencies(Path basePath,
+                                           Path sourceFile,
+                                           String includePattern,
+                                           String excludePattern,
+                                           Set<String> knownTypes,
+                                           Map<String, List<String>> knownBySimpleName,
+                                           Map<String, Double> complexityByType,
+                                           Map<String, EdgeAccumulator> acc) throws IOException {
+        String content = Files.readString(sourceFile);
+        String packageName = extractKotlinPackage(content);
+        String relativePath = basePath.relativize(sourceFile).toString().replace('\\', '/');
+        if (!matchesPattern(packageName, relativePath, includePattern, excludePattern)) {
+            return;
+        }
+
+        List<String> sourceTypes = extractKotlinTopLevelTypeNames(content).stream()
+                .map(typeName -> "(default)".equals(packageName) ? typeName : packageName + "." + typeName)
+                .filter(knownTypes::contains)
+                .toList();
+        if (sourceTypes.isEmpty()) {
+            return;
+        }
+
+        Map<String, String> importsBySimple = new HashMap<>();
+        List<String> wildcardImportPrefixes = new ArrayList<>();
+        Set<String> refNames = new HashSet<>();
+
+        Pattern importPattern = Pattern.compile("(?m)^\\s*import\\s+([A-Za-z_][A-Za-z0-9_.*]+)");
+        java.util.regex.Matcher importMatcher = importPattern.matcher(content);
+        while (importMatcher.find()) {
+            String importName = importMatcher.group(1);
+            if (importName.endsWith(".*")) {
+                wildcardImportPrefixes.add(importName.substring(0, importName.length() - 2));
+                continue;
+            }
+            importsBySimple.putIfAbsent(simpleNameOf(importName), importName);
+            refNames.add(importName);
+        }
+
+        Pattern superTypePattern = Pattern.compile("(?m)^\\s*(?:data\\s+class|class)\\s+[A-Za-z_][A-Za-z0-9_]*\\s*(?:\\([^)]*\\))?\\s*:\\s*([^\\{\\n]+)");
+        java.util.regex.Matcher superMatcher = superTypePattern.matcher(content);
+        while (superMatcher.find()) {
+            String[] refs = superMatcher.group(1).split(",");
+            for (String ref : refs) {
+                String cleaned = ref.replaceAll("<[^>]*>", "").replaceAll("\\(.*", "").trim();
+                if (!cleaned.isEmpty()) {
+                    refNames.add(cleaned);
+                }
+            }
+        }
+
+        for (String sourceType : sourceTypes) {
+            double sourceComplexity = complexityByType.getOrDefault(sourceType, 0.0);
+            for (String rawRef : refNames) {
+                String targetType = resolveTypeReference(rawRef, packageName, importsBySimple,
+                        wildcardImportPrefixes, knownTypes, knownBySimpleName);
+                if (targetType == null || targetType.equals(sourceType)) {
+                    continue;
+                }
+                String key = sourceType + "->" + targetType;
+                acc.computeIfAbsent(key, ignored -> new EdgeAccumulator(sourceType, targetType)).add(1, sourceComplexity);
+            }
+        }
+    }
+
+    private Map<String, List<String>> indexTypesBySimpleName(Set<String> knownTypes) {
+        Map<String, List<String>> index = new HashMap<>();
+        for (String fqn : knownTypes) {
+            index.computeIfAbsent(simpleNameOf(fqn), ignored -> new ArrayList<>()).add(fqn);
+        }
+        return index;
+    }
+
+    private String resolveTypeReference(String rawRef,
+                                        String currentPackage,
+                                        Map<String, String> importsBySimple,
+                                        List<String> wildcardImportPrefixes,
+                                        Set<String> knownTypes,
+                                        Map<String, List<String>> knownBySimpleName) {
+        if (rawRef == null || rawRef.isBlank()) {
+            return null;
+        }
+
+        String ref = rawRef.replace("?", "")
+                .replaceAll("<[^>]*>", "")
+                .trim();
+        if (ref.isEmpty()) {
+            return null;
+        }
+
+        if (knownTypes.contains(ref)) {
+            return ref;
+        }
+
+        String simple = simpleNameOf(ref);
+
+        String imported = importsBySimple.get(simple);
+        if (imported != null && knownTypes.contains(imported)) {
+            return imported;
+        }
+
+        String samePackage = "(default)".equals(currentPackage) ? simple : currentPackage + "." + simple;
+        if (knownTypes.contains(samePackage)) {
+            return samePackage;
+        }
+
+        for (String prefix : wildcardImportPrefixes) {
+            String candidate = prefix + "." + simple;
+            if (knownTypes.contains(candidate)) {
+                return candidate;
+            }
+        }
+
+        List<String> candidates = knownBySimpleName.get(simple);
+        if (candidates != null && candidates.size() == 1) {
+            return candidates.get(0);
+        }
+
+        return null;
+    }
+
+    private String simpleNameOf(String fullName) {
+        int idx = fullName.lastIndexOf('.');
+        return idx >= 0 ? fullName.substring(idx + 1) : fullName;
+    }
+
+    private String packageOf(String fullName) {
+        int idx = fullName.lastIndexOf('.');
+        return idx >= 0 ? fullName.substring(0, idx) : "";
+    }
+
+    private List<String> extractKotlinTopLevelTypeNames(String content) {
+        Pattern typePattern = Pattern.compile("(?m)^\\s*(?:data\\s+class|class|interface|object)\\s+([A-Za-z_][A-Za-z0-9_]*)");
+        java.util.regex.Matcher matcher = typePattern.matcher(content);
+        List<String> names = new ArrayList<>();
+        while (matcher.find()) {
+            names.add(matcher.group(1));
+        }
+        return names;
+    }
+
+    private static final class EdgeAccumulator {
+        private final String source;
+        private final String target;
+        private int weight;
+        private double complexitySum;
+
+        private EdgeAccumulator(String source, String target) {
+            this.source = source;
+            this.target = target;
+        }
+
+        private void add(int deltaWeight, double complexity) {
+            weight += deltaWeight;
+            complexitySum += complexity * deltaWeight;
+        }
+
+        private DependencyEdge toEdge() {
+            double avgComplexity = weight == 0 ? 0.0 : complexitySum / weight;
+            return DependencyEdge.builder()
+                    .source(source)
+                    .target(target)
+                    .weight(weight)
+                    .complexity(Math.round(avgComplexity * 100.0) / 100.0)
+                    .build();
+        }
+    }
+}
